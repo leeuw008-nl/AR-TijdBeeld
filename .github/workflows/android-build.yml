@@ -93,9 +93,3 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: gradle --no-daemon :app:signingReport
-
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: TijdBeeld-proef-apk
-          path: app/build/outputs/apk/proef/app-proef.apk
