@@ -104,7 +104,8 @@ class AdminActivity : Activity() {
     private fun keepSessionAlive() {
         // Lokale proefmodus heeft bewust geen servertoken; stuur dan geen keep-alive verzoek.
         if (sessionToken.isBlank() || packageName.endsWith(".proef")) return
-        if (prefs.getLong("admin_session_expires_at", 0L) == Long.MAX_VALUE) return
+        val expiresAt = prefs.getLong("admin_session_expires_at", 0L)
+        if (expiresAt > System.currentTimeMillis() + 12L * 60L * 60L * 1000L) return
         Thread {
             var connection: HttpURLConnection? = null
             var status = 0
@@ -129,13 +130,19 @@ class AdminActivity : Activity() {
                     finish()
                 }
             } else if (status in 200..299) {
-                prefs.edit().putLong("admin_session_expires_at", Long.MAX_VALUE).apply()
+                val body = runCatching {
+                    connection?.inputStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                }.getOrNull().orEmpty()
+                val expiresIn = runCatching { JSONObject(body).optLong("expiresIn", 24L * 60L * 60L) }
+                    .getOrDefault(24L * 60L * 60L)
+                prefs.edit().putLong("admin_session_expires_at", System.currentTimeMillis() + expiresIn * 1000L).apply()
             }
         }.start()
     }
 
     override fun onResume() {
         super.onResume()
+        keepSessionAlive()
         if (returningFromCamera) {
             returningFromCamera = false
             hasLocalEditsSinceLaunch = true
