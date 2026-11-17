@@ -106,7 +106,7 @@ jobs:
           name: AR-TijdBeeld
           path: dist/AR-TijdBeeld.apk
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 31
 
       - name: Show debug signing fingerprint
         env:
