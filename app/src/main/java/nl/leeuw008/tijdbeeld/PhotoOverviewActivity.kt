@@ -139,6 +139,37 @@ class PhotoOverviewActivity : Activity() {
                         item.optDouble("imageWidthMeters", 3.0).toFloat().coerceIn(1f, 12f)
                     ))
                 }
+                // Vul een eventueel onvolledige serverreactie aan met de laatst
+                // succesvol gepubliceerde catalogus die op dit toestel is opgeslagen.
+                val cachedCatalog = getSharedPreferences("tijdbeeld_admin", MODE_PRIVATE)
+                    .getString("public_catalog_json", null)
+                if (!cachedCatalog.isNullOrBlank()) {
+                    val cachedPhotos = JSONObject(cachedCatalog).optJSONArray("photos")
+                    if (cachedPhotos != null) {
+                        for (i in 0 until cachedPhotos.length()) {
+                            val item = cachedPhotos.optJSONObject(i) ?: continue
+                            val title = item.optString("title").trim()
+                            val imageUrl = item.optString("imageUrl").trim()
+                            val lat = item.optDouble("objectLat", Double.NaN)
+                            val lng = item.optDouble("objectLng", Double.NaN)
+                            if (title.isBlank() || !imageUrl.startsWith("https://") ||
+                                !lat.isFinite() || !lng.isFinite() ||
+                                kotlin.math.abs(lat) > 90 || kotlin.math.abs(lng) > 180) continue
+                            val id = item.optString("id").ifBlank { "cached-photo-$i" }
+                            val existing = loaded.indexOfFirst {
+                                it.id == id || it.imageUrl == imageUrl
+                            }
+                            if (existing < 0) {
+                                loaded.add(CatalogPhoto(
+                                    id, title, imageUrl, lat, lng,
+                                    item.optDouble("cameraLat", lat),
+                                    item.optDouble("cameraLng", lng),
+                                    item.optDouble("imageWidthMeters", 3.0).toFloat().coerceIn(1f, 12f)
+                                ))
+                            }
+                        }
+                    }
+                }
                 if (loaded.isEmpty()) throw IllegalStateException("Geen geldige gepubliceerde foto's gevonden")
                 runOnUiThread {
                     photos = loaded
