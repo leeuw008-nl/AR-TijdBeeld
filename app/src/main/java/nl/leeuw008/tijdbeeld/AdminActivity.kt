@@ -448,7 +448,7 @@ class AdminActivity : Activity() {
                     if (photos[selected].published) publishCatalog()
                     loadPreview(imageUrl, showMessage = true)
                 }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(4) })
-                saveDeleteActions.addView(actionButton("Verwijder") { removePhoto() },
+                saveDeleteActions.addView(actionButton("Verwijderen") { removePhoto() },
                     LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(4) })
                 formPanel.addView(saveDeleteActions, LinearLayout.LayoutParams(-1, dp(48)))
             } else {
