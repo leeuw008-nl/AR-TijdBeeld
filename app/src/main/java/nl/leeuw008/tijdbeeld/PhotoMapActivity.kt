@@ -111,7 +111,43 @@ class PhotoMapActivity : Activity() {
                     item.optDouble("imageWidthMeters", 3.0).toFloat().coerceIn(1f, 12f)
                 ))
             }
-            local
+
+            // Gebruik ook de laatst succesvol gepubliceerde catalogus die deze
+            // installatie lokaal bewaart. Daarmee blijft de volledige publicatie
+            // zichtbaar als de Worker tijdelijk een oudere catalogus teruggeeft.
+            val cachedCatalog = prefs.getString("public_catalog_json", null)
+            if (!cachedCatalog.isNullOrBlank()) {
+                val cachedPhotos = JSONObject(cachedCatalog).optJSONArray("photos")
+                if (cachedPhotos != null) {
+                    for (i in 0 until cachedPhotos.length()) {
+                        val item = cachedPhotos.optJSONObject(i) ?: continue
+                        val title = item.optString("title").trim()
+                        val imageUrl = item.optString("imageUrl").trim()
+                        val lat = item.optDouble("objectLat", Double.NaN)
+                        val lng = item.optDouble("objectLng", Double.NaN)
+                        if (title.isBlank() || !imageUrl.startsWith("https://") ||
+                            !lat.isFinite() || !lng.isFinite() ||
+                            kotlin.math.abs(lat) > 90 || kotlin.math.abs(lng) > 180) continue
+                        local.add(MapPhoto(
+                            item.optString("id").ifBlank { "cached-photo-$i" },
+                            title, imageUrl, lat, lng,
+                            item.optDouble("cameraLat", lat),
+                            item.optDouble("cameraLng", lng),
+                            item.optDouble("imageWidthMeters", 3.0).toFloat().coerceIn(1f, 12f)
+                        ))
+                    }
+                }
+            }
+
+            // Dubbelen op ID of afbeeldings-URL samenvoegen.
+            val unique = mutableListOf<MapPhoto>()
+            for (photo in local) {
+                val existing = unique.indexOfFirst {
+                    it.id == photo.id || it.imageUrl == photo.imageUrl
+                }
+                if (existing >= 0) unique[existing] = photo else unique.add(photo)
+            }
+            unique
         } catch (e: Exception) {
             android.util.Log.w("TijdBeeldMap", "Lokale gepubliceerde foto's konden niet worden gelezen", e)
             emptyList()
