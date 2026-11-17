@@ -101,13 +101,19 @@ class AdminActivity : Activity() {
         keepSessionAlive()
     }
 
+    private var sessionRefreshInProgress = false
+
     private fun keepSessionAlive() {
-        // Lokale proefmodus heeft bewust geen servertoken; stuur dan geen keep-alive verzoek.
-        if (sessionToken.isBlank() || packageName.endsWith(".proef")) return
-        if (prefs.getLong("admin_session_expires_at", 0L) == Long.MAX_VALUE) return
+        if (sessionToken.isBlank() || packageName.endsWith(".proef") || sessionRefreshInProgress) return
+        val expiresAt = prefs.getLong("admin_session_expires_at", 0L)
+        // Vernieuw pas wanneer minder dan één uur resteert; een actieve sessie
+        // blijft zo doorlopen zonder bij iedere schermwisseling een verzoek.
+        if (expiresAt > System.currentTimeMillis() + 60L * 60L * 1000L) return
+        sessionRefreshInProgress = true
         Thread {
             var connection: HttpURLConnection? = null
             var status = 0
+            var renewedExpiry = 0L
             try {
                 connection = (URL("$WORKER_BASE_URL/auth/keep-session").openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
@@ -117,10 +123,17 @@ class AdminActivity : Activity() {
                     setRequestProperty("Authorization", "Bearer $sessionToken")
                 }
                 status = connection.responseCode
+                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                if (status in 200..299) {
+                    val seconds = JSONObject(body).optLong("expiresIn", 24L * 60L * 60L)
+                    renewedExpiry = System.currentTimeMillis() + seconds.coerceAtLeast(1L) * 1000L
+                }
             } catch (_: Exception) {
-                // Keep the local session during temporary network problems.
+                // Bij een tijdelijke netwerkfout blijft de bestaande sessie intact.
             } finally {
                 connection?.disconnect()
+                runOnUiThread { sessionRefreshInProgress = false }
             }
             if (status == 401) {
                 prefs.edit().remove("admin_session_token").remove("admin_session_expires_at").apply()
@@ -128,14 +141,15 @@ class AdminActivity : Activity() {
                     Toast.makeText(this, "De beheersessie is niet meer geldig. Log opnieuw in.", Toast.LENGTH_LONG).show()
                     finish()
                 }
-            } else if (status in 200..299) {
-                prefs.edit().putLong("admin_session_expires_at", Long.MAX_VALUE).apply()
+            } else if (status in 200..299 && renewedExpiry > 0L) {
+                prefs.edit().putLong("admin_session_expires_at", renewedExpiry).apply()
             }
         }.start()
     }
 
     override fun onResume() {
         super.onResume()
+        keepSessionAlive()
         if (returningFromCamera) {
             returningFromCamera = false
             hasLocalEditsSinceLaunch = true
