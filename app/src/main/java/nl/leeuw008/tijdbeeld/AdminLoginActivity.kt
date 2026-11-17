@@ -34,7 +34,7 @@ class AdminLoginActivity : Activity() {
             setBackgroundColor(0xFFF3F6F9.toInt())
         }
         root.addView(TextView(this).apply {
-            text = "TijdBeeld • Beheerder inloggen"
+            text = "AR-TijdBeeld • Beheerder inloggen"
             textSize = 23f
             setTextColor(0xFF174A7E.toInt())
             gravity = Gravity.CENTER
@@ -212,14 +212,16 @@ class AdminLoginActivity : Activity() {
                         prefs.edit()
                             .putString("admin_email", email)
                             .putString("admin_session_token", token)
-                            .putLong("admin_session_expires_at", System.currentTimeMillis() + expiresIn * 1000L)
+                            .putLong("admin_session_expires_at", Long.MAX_VALUE)
                             .apply()
                         passwordInput.text.clear()
                         startActivity(Intent(this, AdminActivity::class.java).putExtra("admin_authenticated", true))
                         finish()
                     } else {
-                        val message = response?.optString("error")?.takeIf { it.isNotBlank() }
-                            ?: "Inloggen is niet gelukt (HTTP $status)."
+                        val error = response?.optString("error")?.takeIf { it.isNotBlank() }
+                            ?: "Inloggen is niet gelukt."
+                        val stage = response?.optString("diagnosticStage")?.takeIf { it.isNotBlank() }
+                        val message = if (stage != null) "$error (fase: $stage, HTTP $status)" else "$error (HTTP $status)"
                         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                     }
                 }
