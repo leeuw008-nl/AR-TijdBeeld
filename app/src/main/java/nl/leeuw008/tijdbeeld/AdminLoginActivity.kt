@@ -21,6 +21,17 @@ class AdminLoginActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Hergebruik de lokaal opgeslagen beheersessie na app-herstart of terugkeer
+        // naar het inlogscherm. De server controleert de token zodra Beheer opent.
+        val savedToken = prefs.getString("admin_session_token", "").orEmpty()
+        if (savedToken.isNotBlank()) {
+            startActivity(Intent(this, AdminActivity::class.java)
+                .putExtra("admin_authenticated", true))
+            finish()
+            return
+        }
+
         buildLoginScreen()
     }
 
