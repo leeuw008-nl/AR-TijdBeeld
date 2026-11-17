@@ -39,6 +39,7 @@ class StartActivity : Activity() {
     private var photos: List<HomePhoto> = emptyList()
     private var featuredPhotoId: String = ""
     private var firstResume = true
+    @Volatile private var sessionRefreshInFlight = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,12 +49,52 @@ class StartActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        refreshAdminSessionInBackground()
         if (firstResume) {
             firstResume = false
         } else if (::featuredImage.isInitialized) {
             // Bij terugkeer uit Beheer de actuele catalogus en lokale fotokeuze opnieuw tonen.
             loadCatalog()
         }
+    }
+
+    // Houd een bestaande beheersessie actief wanneer de gebruiker de app opnieuw opent.
+    // Netwerkfouten veranderen de lokale aanmelding niet; alleen een geldige serverrespons
+    // verlengt de lokale vervaldatum. Andere schermen en fotogegevens blijven onaangeraakt.
+    private fun refreshAdminSessionInBackground() {
+        val token = prefs.getString("admin_session_token", "").orEmpty()
+        if (token.isBlank() || sessionRefreshInFlight) return
+        sessionRefreshInFlight = true
+        Thread {
+            var connection: HttpURLConnection? = null
+            try {
+                connection = (URL("https://tijdbeeld.leeuw008.workers.dev/auth/keep-session").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 8000
+                    readTimeout = 8000
+                    setRequestProperty("Authorization", "Bearer $token")
+                }
+                val status = connection.responseCode
+                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                val responseBody = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                if (status in 200..299) {
+                    val expiresIn = JSONObject(responseBody).optLong("expiresIn", 24L * 60L * 60L)
+                    if (expiresIn > 0L && prefs.getString("admin_session_token", "").orEmpty() == token) {
+                        prefs.edit().putLong(
+                            "admin_session_expires_at",
+                            System.currentTimeMillis() + expiresIn * 1000L
+                        ).apply()
+                    }
+                }
+                // 401 wordt bewust niet lokaal afgehandeld op de startpagina.
+                // Beheer controleert de sessie en toont daar zo nodig het inlogscherm.
+            } catch (_: Exception) {
+                // Geen netwerk: behoud de bestaande lokale sessiegegevens.
+            } finally {
+                connection?.disconnect()
+                sessionRefreshInFlight = false
+            }
+        }.start()
     }
 
     private fun buildScreen() {
