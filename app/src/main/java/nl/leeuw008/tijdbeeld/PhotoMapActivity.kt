@@ -77,7 +77,49 @@ class PhotoMapActivity : Activity() {
         loadCatalog()
     }
 
+    // Neem ook de op dit toestel bewaarde foto's mee, maar uitsluitend als ze
+    // expliciet gepubliceerd zijn. Zo verdwijnen gepubliceerde foto's niet van
+    // de kaart wanneer de openbare catalogus tijdelijk achterloopt.
+    private fun loadLocalPublishedPhotos(): List<MapPhoto> {
+        return try {
+            val prefs = getSharedPreferences("tijdbeeld_admin", MODE_PRIVATE)
+            val primary = prefs.getString("photos", null)
+            val backup = prefs.getString("photos_backup", null)
+            val raw = primary?.takeIf {
+                runCatching { org.json.JSONArray(it).length() > 0 }.getOrDefault(false)
+            } ?: backup?.takeIf {
+                runCatching { org.json.JSONArray(it).length() > 0 }.getOrDefault(false)
+            } ?: return emptyList()
+
+            val array = org.json.JSONArray(raw)
+            val local = mutableListOf<MapPhoto>()
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i) ?: continue
+                if (!item.optBoolean("published", false)) continue
+                val title = item.optString("title").trim()
+                val imageUrl = item.optString("imageUrl").trim()
+                val lat = item.optDouble("objectLat", Double.NaN)
+                val lng = item.optDouble("objectLng", Double.NaN)
+                if (title.isBlank() || !imageUrl.startsWith("https://") ||
+                    !lat.isFinite() || !lng.isFinite() ||
+                    kotlin.math.abs(lat) > 90 || kotlin.math.abs(lng) > 180) continue
+                local.add(MapPhoto(
+                    item.optString("id").ifBlank { "local-photo-$i" },
+                    title, imageUrl, lat, lng,
+                    item.optDouble("cameraLat", lat),
+                    item.optDouble("cameraLng", lng),
+                    item.optDouble("imageWidthMeters", 3.0).toFloat().coerceIn(1f, 12f)
+                ))
+            }
+            local
+        } catch (e: Exception) {
+            android.util.Log.w("TijdBeeldMap", "Lokale gepubliceerde foto's konden niet worden gelezen", e)
+            emptyList()
+        }
+    }
+
     private fun loadCatalog() {
+        val localPhotos = loadLocalPublishedPhotos()
         Thread {
             var connection: HttpURLConnection? = null
             try {
@@ -85,13 +127,14 @@ class PhotoMapActivity : Activity() {
                     connectTimeout = 10000
                     readTimeout = 15000
                     requestMethod = "GET"
+                    setRequestProperty("Cache-Control", "no-cache")
                 }
                 if (connection.responseCode !in 200..299) {
                     throw IllegalStateException("Catalogus niet bereikbaar (HTTP ${connection.responseCode})")
                 }
                 val root = JSONObject(connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
                 val array = root.getJSONArray("photos")
-                val loaded = mutableListOf<MapPhoto>()
+                val remote = mutableListOf<MapPhoto>()
                 for (i in 0 until array.length()) {
                     val item = array.getJSONObject(i)
                     val title = item.optString("title").trim()
@@ -99,20 +142,39 @@ class PhotoMapActivity : Activity() {
                     val lat = item.optDouble("objectLat", Double.NaN)
                     val lng = item.optDouble("objectLng", Double.NaN)
                     if (title.isBlank() || imageUrl.isBlank() || !lat.isFinite() || !lng.isFinite()) continue
-                    loaded.add(MapPhoto(
+                    remote.add(MapPhoto(
                         item.optString("id", "photo-$i"), title, imageUrl, lat, lng,
                         item.optDouble("cameraLat", lat), item.optDouble("cameraLng", lng),
                         item.optDouble("imageWidthMeters", 3.0).toFloat().coerceIn(1f, 12f)
                     ))
                 }
-                if (loaded.isEmpty()) throw IllegalStateException("Geen geldige fotolocaties gevonden")
+
+                // Combineer lokaal gepubliceerde records met de openbare catalogus.
+                // Bij dubbelen is de openbare versie leidend; ongepubliceerde lokale
+                // foto's worden nooit aan deze lijst toegevoegd.
+                val merged = localPhotos.toMutableList()
+                for (photo in remote) {
+                    val existing = merged.indexOfFirst {
+                        it.id == photo.id || (it.imageUrl.isNotBlank() && it.imageUrl == photo.imageUrl)
+                    }
+                    if (existing >= 0) merged[existing] = photo else merged.add(photo)
+                }
+                if (merged.isEmpty()) throw IllegalStateException("Geen geldige fotolocaties gevonden")
                 runOnUiThread {
-                    photos = loaded
-                    status.text = "TijdBeeld • ${loaded.size} historische fotolocaties"
+                    photos = merged
+                    status.text = "TijdBeeld • ${merged.size} historische fotolocaties"
                     showMap()
                 }
             } catch (e: Exception) {
-                runOnUiThread { status.text = "Fotolocaties konden niet worden geladen. Controleer je internetverbinding." }
+                runOnUiThread {
+                    if (localPhotos.isNotEmpty()) {
+                        photos = localPhotos
+                        status.text = "TijdBeeld • ${localPhotos.size} lokaal gepubliceerde fotolocaties"
+                        showMap()
+                    } else {
+                        status.text = "Fotolocaties konden niet worden geladen. Controleer je internetverbinding."
+                    }
+                }
             } finally {
                 connection?.disconnect()
             }
