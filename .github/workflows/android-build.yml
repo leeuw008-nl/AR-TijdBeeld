@@ -87,6 +87,26 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: gradle --no-daemon :app:assembleProef
 
+      - name: Prepare separately named proef APK
+        run: |
+          mkdir -p dist
+          APK_PATH="$(find app/build/outputs/apk/proef -type f -name '*.apk' -print -quit)"
+          if [ -z "$APK_PATH" ]; then
+            echo "::error::Proef APK was not generated."
+            find app/build/outputs -maxdepth 5 -type f -print || true
+            exit 1
+          fi
+          cp "$APK_PATH" dist/TijdBeeld-proef.apk
+          test -s dist/TijdBeeld-proef.apk
+
+      - name: Upload TijdBeeld-proef APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TijdBeeld-proef-apk
+          path: dist/TijdBeeld-proef.apk
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Show debug signing fingerprint
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
