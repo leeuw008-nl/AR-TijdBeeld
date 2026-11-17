@@ -31,16 +31,10 @@ android {
 
     buildTypes {
         getByName("debug") {
-            manifestPlaceholders["appLabel"] = "TijdBeeld"
+            manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
             if (hasFixedKeystore) {
                 signingConfig = signingConfigs.getByName("fixedDebug")
             }
-        }
-        create("proef") {
-            initWith(getByName("debug"))
-            applicationIdSuffix = ".proef"
-            manifestPlaceholders["appLabel"] = "TijdBeeld proef"
-            matchingFallbacks += listOf("debug")
         }
     }
 
