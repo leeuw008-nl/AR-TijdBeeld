@@ -32,12 +32,13 @@ jobs:
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
-            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > app/tijdbeeld-release.jks
-            echo "Fixed Android signing key prepared."
-          else
-            echo "No signing secret available; using the standard debug key."
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is missing. Refusing to build an APK with a temporary debug signing key."
+            exit 1
           fi
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > app/tijdbeeld-release.jks
+          test -s app/tijdbeeld-release.jks
+          echo "Fixed Android signing key prepared."
 
       - name: Verify fixed Android signing key
         if: hashFiles('app/tijdbeeld-release.jks') != ''
