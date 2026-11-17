@@ -65,16 +65,36 @@ class PhotoOverviewActivity : Activity() {
         fun dp(value: Int) = (value * density).toInt()
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(16), dp(18), dp(12))
             setBackgroundColor(0xFFF3F6F9.toInt())
         }
-        root.addView(TextView(this).apply {
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(8), dp(16), dp(8))
+            setBackgroundColor(0xFF1769AA.toInt())
+        }
+        header.addView(TextView(this).apply {
+            text = "‹"
+            textSize = 34f
+            gravity = Gravity.CENTER
+            setTextColor(0xFFFFFFFF.toInt())
+            contentDescription = "Terug"
+            setPadding(0, 0, dp(12), 0)
+            setOnClickListener { finish() }
+        }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        header.addView(TextView(this).apply {
             text = "Historische foto's"
-            textSize = 25f
-            setTextColor(0xFF174A7E.toInt())
-            setPadding(0, 0, 0, dp(5))
-        })
-        root.addView(TextView(this).apply {
+            textSize = 21f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(0xFFFFFFFF.toInt())
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        root.addView(header)
+
+        val pageContent = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(12))
+        }
+        pageContent.addView(TextView(this).apply {
             text = "De dichtstbijzijnde locaties staan bovenaan."
             textSize = 14f
             setTextColor(0xFF53616D.toInt())
@@ -82,15 +102,8 @@ class PhotoOverviewActivity : Activity() {
         })
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val scroll = ScrollView(this).apply { addView(content) }
-        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        root.addView(TextView(this).apply {
-            text = "‹ Terug"
-            textSize = 16f
-            gravity = Gravity.CENTER_VERTICAL
-            setTextColor(0xFF174A7E.toInt())
-            setPadding(0, dp(12), 0, dp(8))
-            setOnClickListener { finish() }
-        })
+        pageContent.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(pageContent, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
         showStatus("Gepubliceerde foto's ophalen…")
     }
