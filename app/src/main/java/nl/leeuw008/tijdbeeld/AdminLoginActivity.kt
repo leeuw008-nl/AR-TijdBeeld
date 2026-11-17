@@ -223,7 +223,10 @@ class AdminLoginActivity : Activity() {
                         prefs.edit()
                             .putString("admin_email", email)
                             .putString("admin_session_token", token)
-                            .putLong("admin_session_expires_at", Long.MAX_VALUE)
+                            .putLong(
+                                "admin_session_expires_at",
+                                System.currentTimeMillis() + expiresIn.coerceAtLeast(1L) * 1000L
+                            )
                             .apply()
                         passwordInput.text.clear()
                         startActivity(Intent(this, AdminActivity::class.java).putExtra("admin_authenticated", true))
