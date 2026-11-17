@@ -1,4 +1,3 @@
-const SESSION_TTL_SECONDS = 8 * 60 * 60;
 const LOGIN_WINDOW_SECONDS = 15 * 60;
 const MAX_LOGIN_ATTEMPTS = 10;
 const RESET_TTL_SECONDS = 15 * 60;
@@ -146,39 +145,67 @@ async function handle(request, env) {
   }
 
   if (url.pathname === "/auth/login" && request.method === "POST") {
-    if (!env.SESSIONS || !env.ADMIN_EMAIL || !env.ADMIN_PASSWORD_HASH) {
-      return json({ error: "De beheerlogin is nog niet ingesteld." }, 503);
+    let diagnosticStage = "check-login-configuration";
+    try {
+      if (!env.SESSIONS || !env.ADMIN_EMAIL) {
+        return json({ error: "De beheerlogin is nog niet ingesteld." }, 503);
+      }
+      diagnosticStage = "read-client-ip";
+      const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+      const attemptKey = "login-attempt:" + await sha256Hex(ip);
+      diagnosticStage = "read-login-attempt-counter";
+      const attempts = Number(await env.SESSIONS.get(attemptKey) || "0");
+      if (attempts >= MAX_LOGIN_ATTEMPTS) {
+        return json({ error: "Te veel inlogpogingen. Probeer het over 15 minuten opnieuw." }, 429);
+      }
+      diagnosticStage = "read-request-body";
+      let body;
+      try { body = await request.json(); } catch { return json({ error: "Ongeldige aanvraag." }, 400); }
+      const email = String(body.email || "").trim().toLowerCase();
+      const password = String(body.password || "");
+      const emailMatches = email === String(env.ADMIN_EMAIL).trim().toLowerCase();
+      diagnosticStage = "read-password-hash";
+      const kvHash = await env.SESSIONS.get("admin-password-hash");
+      const storedHash = kvHash || env.ADMIN_PASSWORD_HASH;
+      if (!storedHash) return json({ error: "De beheerlogin is nog niet ingesteld." }, 503);
+      diagnosticStage = "verify-password";
+      const passwordMatches = await verifyPassword(password, storedHash);
+      console.info("TijdBeeld login check", { emailMatches, hashPresent: Boolean(storedHash), hashSource: kvHash ? "KV" : "ADMIN_PASSWORD_HASH", hashFormatValid: Boolean(storedHash && storedHash.startsWith("pbkdf2$")), passwordMatches });
+      if (!emailMatches || !passwordMatches) {
+        diagnosticStage = "record-failed-login";
+        await env.SESSIONS.put(attemptKey, String(attempts + 1), { expirationTtl: LOGIN_WINDOW_SECONDS });
+        return json({ error: "E-mailadres of wachtwoord is niet juist." }, 401);
+      }
+      diagnosticStage = "clear-failed-login-counter";
+      await env.SESSIONS.delete(attemptKey);
+      diagnosticStage = "generate-session-token";
+      const random = crypto.getRandomValues(new Uint8Array(32));
+      const token = Array.from(random, (b) => b.toString(16).padStart(2, "0")).join("");
+      diagnosticStage = "hash-session-token";
+      const tokenKey = "session:" + await sha256Hex(token);
+      diagnosticStage = "write-session";
+      // Keep the administrator session valid until explicit logout or password reset.
+      await env.SESSIONS.put(tokenKey, JSON.stringify({
+        email: env.ADMIN_EMAIL,
+        createdAt: new Date().toISOString(),
+      }));
+      diagnosticStage = "complete";
+      return json({ success: true, token, expiresIn: 0 });
+    } catch (error) {
+      console.error("TijdBeeld login diagnostic", {
+        stage: diagnosticStage,
+        errorName: error instanceof Error ? error.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error)
+      });
+      const diagnosticReason = error instanceof Error
+        ? error.name + ": " + error.message
+        : String(error);
+      return json({
+        error: "Inloggen is mislukt.",
+        diagnosticStage: diagnosticStage + ": " + diagnosticReason.slice(0, 180)
+      }, 500);
     }
-    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-    const attemptKey = "login-attempt:" + await sha256Hex(ip);
-    const attempts = Number(await env.SESSIONS.get(attemptKey) || "0");
-    if (attempts >= MAX_LOGIN_ATTEMPTS) {
-      return json({ error: "Te veel inlogpogingen. Probeer het over 15 minuten opnieuw." }, 429);
-    }
-    let body;
-    try { body = await request.json(); } catch { return json({ error: "Ongeldige aanvraag." }, 400); }
-    const email = String(body.email || "").trim().toLowerCase();
-    const password = String(body.password || "");
-    const emailMatches = email === String(env.ADMIN_EMAIL).trim().toLowerCase();
-    const kvHash = await env.SESSIONS.get("admin-password-hash");
-    const storedHash = kvHash || env.ADMIN_PASSWORD_HASH;
-    const passwordMatches = storedHash ? await verifyPassword(password, storedHash) : false;
-    console.info("TijdBeeld login check", { emailMatches, hashPresent: Boolean(storedHash), hashSource: kvHash ? "KV" : "ADMIN_PASSWORD_HASH", hashFormatValid: Boolean(storedHash && storedHash.startsWith("pbkdf2$")), passwordMatches });
-    if (!emailMatches || !passwordMatches) {
-      await env.SESSIONS.put(attemptKey, String(attempts + 1), { expirationTtl: LOGIN_WINDOW_SECONDS });
-      return json({ error: "E-mailadres of wachtwoord is niet juist." }, 401);
-    }
-    await env.SESSIONS.delete(attemptKey);
-    const random = crypto.getRandomValues(new Uint8Array(32));
-    const token = Array.from(random, (b) => b.toString(16).padStart(2, "0")).join("");
-    const tokenKey = "session:" + await sha256Hex(token);
-    await env.SESSIONS.put(tokenKey, JSON.stringify({
-      email: env.ADMIN_EMAIL,
-      createdAt: new Date().toISOString(),
-    }), { expirationTtl: SESSION_TTL_SECONDS });
-    return json({ success: true, token, expiresIn: SESSION_TTL_SECONDS });
   }
-
 
   if (url.pathname === "/auth/forgot-password" && request.method === "POST") {
     if (!env.SESSIONS || !env.ADMIN_EMAIL || !env.RESEND_API_KEY) {
@@ -286,6 +313,14 @@ async function handle(request, env) {
     }
   }
 
+  if (url.pathname === "/auth/keep-session" && request.method === "POST") {
+    const current = await getSession(request, env);
+    if (!current) return json({ error: "Je sessie is verlopen. Log opnieuw in." }, 401);
+    // Extend the currently valid token indefinitely for the test phase.
+    await env.SESSIONS.put(current.key, JSON.stringify(current.session));
+    return json({ success: true, persistent: true });
+  }
+
   if (url.pathname === "/auth/logout" && request.method === "POST") {
     const current = await getSession(request, env);
     if (current) await env.SESSIONS.delete(current.key);
@@ -293,16 +328,57 @@ async function handle(request, env) {
   }
 
   if (url.pathname === "/photos" && request.method === "GET") {
+    // KV blijft leidend voor bestaande foto-ID's; ontbrekende basisfoto's uit de
+    // centrale catalogus worden alleen aan het antwoord toegevoegd. We schrijven
+    // deze samenvoeging nadrukkelijk NIET terug naar KV.
     const stored = await env.CATALOG.get("public-catalog", "json");
-    if (stored) return json(stored);
-    // Preserve the current public catalog until the first successful publication.
-    const response = await fetch(LEGACY_CATALOG_URL, { cf: { cacheTtl: 60 } });
-    if (!response.ok) return json({ error: "De openbare catalogus kon niet worden geladen." }, 502);
-    return new Response(response.body, { headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "public, max-age=60",
-      "Access-Control-Allow-Origin": "*",
-    }});
+    const hasStoredPhotos = stored && Array.isArray(stored.photos) && stored.photos.length > 0;
+
+    let legacyCatalog = null;
+    try {
+      const legacy = await fetch(LEGACY_CATALOG_URL, { cf: { cacheTtl: 300 } });
+      if (legacy.ok) {
+        const candidate = await legacy.json();
+        if (validCatalog(candidate)) legacyCatalog = candidate;
+      }
+    } catch (error) {
+      console.warn("TijdBeeld legacy catalog fetch failed", {
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+
+    if (hasStoredPhotos) {
+      if (!legacyCatalog) return json(stored);
+
+      const mergedPhotos = [...stored.photos];
+      const knownIds = new Set(
+        stored.photos.filter((photo) => photo && typeof photo.id === "string").map((photo) => photo.id)
+      );
+      for (const photo of legacyCatalog.photos) {
+        if (!knownIds.has(photo.id)) {
+          mergedPhotos.push(photo);
+          knownIds.add(photo.id);
+        }
+      }
+
+      // Houd de Worker binnen dezelfde cataloguslimiet als bij publicatie.
+      if (mergedPhotos.length > 2000) return json(stored);
+
+      const merged = { ...stored, photos: mergedPhotos };
+      const featuredIds = new Set(mergedPhotos.map((photo) => photo.id));
+      if (!featuredIds.has(merged.featuredPhotoId)) {
+        merged.featuredPhotoId = featuredIds.has(legacyCatalog.featuredPhotoId)
+          ? legacyCatalog.featuredPhotoId
+          : mergedPhotos[0].id;
+      }
+      return json(merged);
+    }
+
+    // Zonder bruikbare KV-foto's blijft de centrale catalogus de terugvalbron.
+    if (!legacyCatalog) {
+      return json({ error: "De openbare catalogus kon niet worden geladen." }, 502);
+    }
+    return json(legacyCatalog);
   }
 
   if (url.pathname === "/photos" && request.method === "POST") {
@@ -311,8 +387,57 @@ async function handle(request, env) {
     let catalog;
     try { catalog = await request.json(); } catch { return json({ error: "Ongeldige catalogusgegevens." }, 400); }
     if (!validCatalog(catalog)) return json({ error: "De catalogus voldoet niet aan het vereiste formaat." }, 400);
+    // Fail-safe: een publicatie mag nooit bestaande openbare foto-ID's laten verdwijnen.
+    // Verwijderen moet later via een afzonderlijke, expliciete en bevestigde beheeractie.
+    if (catalog.photos.length === 0) {
+      return json({ error: "Publiceren geweigerd: de catalogus bevat geen foto's. De bestaande openbare foto's zijn behouden." }, 400);
+    }
+    const existing = await env.CATALOG.get("public-catalog", "json");
+    if (existing !== null && !validCatalog(existing)) {
+      return json({
+        error: "Publiceren geblokkeerd: de bestaande openbare catalogus kan niet veilig worden gecontroleerd. Er is niets gewijzigd."
+      }, 409);
+    }
+
+    // De centrale catalogus is eveneens een beschermde bron. Zonder een
+    // succesvolle, geldige controle daarvan mag KV nooit worden overschreven.
+    let legacyCatalog;
+    try {
+      const legacyResponse = await fetch(LEGACY_CATALOG_URL, { cf: { cacheTtl: 300 } });
+      if (!legacyResponse.ok) {
+        return json({
+          error: "Publiceren geblokkeerd: de centrale fotocatalogus is tijdelijk niet controleerbaar. Er is niets gewijzigd."
+        }, 503);
+      }
+      legacyCatalog = await legacyResponse.json();
+    } catch {
+      return json({
+        error: "Publiceren geblokkeerd: de centrale fotocatalogus is tijdelijk niet controleerbaar. Er is niets gewijzigd."
+      }, 503);
+    }
+    if (!validCatalog(legacyCatalog)) {
+      return json({
+        error: "Publiceren geblokkeerd: de centrale fotocatalogus heeft een ongeldig formaat. Er is niets gewijzigd."
+      }, 503);
+    }
+
+    const incomingIds = new Set(catalog.photos.map((photo) => photo.id));
+    const protectedIds = new Set([
+      ...(existing ? existing.photos.map((photo) => photo.id) : []),
+      ...legacyCatalog.photos.map((photo) => photo.id),
+    ]);
+    const missingProtected = [...protectedIds].filter((id) => !incomingIds.has(id));
+    if (missingProtected.length > 0) {
+      return json({
+        error: "Publiceren geblokkeerd: " + missingProtected.length +
+          " bestaande foto('s) uit de openbare of centrale catalogus ontbreken in deze publicatie. Er is niets gewijzigd. Vernieuw eerst de fotolijst."
+      }, 409);
+    }
+
     catalog.updatedAt = new Date().toISOString();
     await env.CATALOG.put("public-catalog", JSON.stringify(catalog));
+    const cacheKey = new Request(new URL("/photos", url.origin).toString(), { method: "GET" });
+    await caches.default.delete(cacheKey);
     return json({ success: true, photoCount: catalog.photos.length });
   }
 
