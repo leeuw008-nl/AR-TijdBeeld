@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tijdbeeld",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-13",
+  "workers_dev": true,
+  "vars": {
+    "ADMIN_EMAIL": "leeuw008@gmail.com"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "CATALOG",
+      "id": "c817d1f38dd842d4a79ae6c9bb7ef784"
+    },
+    {
+      "binding": "SESSIONS",
+      "id": "471f51029da045e1825110fb189614e2"
+    }
+  ]
+}

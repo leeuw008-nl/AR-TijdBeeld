@@ -1,0 +1,1 @@
+Temporary trigger for the Android APK build on feature/user-admin-modes. This file is removed after the build.
