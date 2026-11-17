@@ -80,30 +80,30 @@ jobs:
           python -m pip install --disable-pip-version-check numpy trimesh
           python tools/build_ommerschans_v8.py
 
-      - name: Build debug APK
+      - name: Build AR-TijdBeeld APK
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: gradle --no-daemon :app:assembleProef
+        run: gradle --no-daemon :app:assembleDebug
 
-      - name: Prepare separately named proef APK
+      - name: Prepare AR-TijdBeeld APK
         run: |
           mkdir -p dist
-          APK_PATH="$(find app/build/outputs/apk/proef -type f -name '*.apk' -print -quit)"
+          APK_PATH="$(find app/build/outputs/apk/debug -type f -name '*.apk' -print -quit)"
           if [ -z "$APK_PATH" ]; then
-            echo "::error::Proef APK was not generated."
+            echo "::error::AR-TijdBeeld APK was not generated."
             find app/build/outputs -maxdepth 5 -type f -print || true
             exit 1
           fi
-          cp "$APK_PATH" dist/TijdBeeld-proef.apk
-          test -s dist/TijdBeeld-proef.apk
+          cp "$APK_PATH" dist/AR-TijdBeeld.apk
+          test -s dist/AR-TijdBeeld.apk
 
-      - name: Upload TijdBeeld-proef APK
+      - name: Upload AR-TijdBeeld APK
         uses: actions/upload-artifact@v4
         with:
-          name: TijdBeeld-proef-apk
-          path: dist/TijdBeeld-proef.apk
+          name: AR-TijdBeeld
+          path: dist/AR-TijdBeeld.apk
           if-no-files-found: error
           retention-days: 30
 
