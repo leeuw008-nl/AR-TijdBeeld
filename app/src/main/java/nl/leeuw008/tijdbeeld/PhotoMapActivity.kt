@@ -133,11 +133,23 @@ class PhotoMapActivity : Activity() {
             <!doctype html>
             <html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
             <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-            <style>html,body,#map{height:100%;width:100%;margin:0;padding:0} .leaflet-popup-content{font-size:15px} button{background:#174a7e;color:white;border:0;border-radius:5px;padding:9px 12px;font-size:14px}</style>
+            <style>html,body,#map{height:100%;width:100%;margin:0;padding:0} .leaflet-popup-content{font-size:15px} button{background:#174a7e;color:white;border:0;border-radius:5px;padding:9px 12px;font-size:14px} .leaflet-control-zoom a{width:38px!important;height:38px!important;line-height:38px!important;font-size:24px!important} .leaflet-control-zoomlevel{background:#fff;padding:5px 8px;border:2px solid rgba(0,0,0,.2);border-radius:4px;font:bold 12px/18px Arial;color:#333;text-align:center;min-width:42px}</style>
             <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script></head>
             <body><div id="map"></div><script>
             const photos = $markers;
-            const map = L.map('map');
+            const map = L.map('map',{zoomControl:false});
+            L.control.zoom({position:'topright'}).addTo(map);
+            const zoomLevel = L.control({position:'topright'});
+            zoomLevel.onAdd = function() {
+              this._div = L.DomUtil.create('div','leaflet-control-zoomlevel');
+              this._div.textContent = 'Zoom ' + map.getZoom();
+              return this._div;
+            };
+            zoomLevel.addTo(map);
+            map.on('zoomend', () => {
+              const el = zoomLevel.getContainer();
+              if (el) el.textContent = 'Zoom ' + map.getZoom();
+            });
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
               maxZoom: 19, attribution: '© OpenStreetMap-bijdragers'
             }).addTo(map);
@@ -192,6 +204,6 @@ class PhotoMapActivity : Activity() {
 
     companion object {
         private const val PUBLIC_CATALOG_URL =
-            "https://raw.githubusercontent.com/leeuw008-nl/TijdBeeld-data/main/photos.json"
+            "https://tijdbeeld.leeuw008.workers.dev/photos"
     }
 }
