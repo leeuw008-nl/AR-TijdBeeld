@@ -42,6 +42,7 @@ class PhotoOverviewActivity : Activity() {
         super.onCreate(savedInstanceState)
         try {
             buildScreen()
+            loadLocalPhotos()
             loadCatalog()
             resolveLocation()
         } catch (e: Exception) {
@@ -95,6 +96,58 @@ class PhotoOverviewActivity : Activity() {
         showStatus("Gepubliceerde foto's ophalen…")
     }
 
+    // De beheerfunctie bewaart ook foto's op het toestel. Neem die mee in
+    // Foto-overzicht, ook wanneer ze nog niet in de openbare catalogus staan.
+    private fun loadLocalPhotos() {
+        try {
+            val prefs = getSharedPreferences("tijdbeeld_admin", MODE_PRIVATE)
+            val primary = prefs.getString("photos", null)
+            val backup = prefs.getString("photos_backup", null)
+            val raw = primary?.takeIf { runCatching { org.json.JSONArray(it).length() > 0 }.getOrDefault(false) }
+                ?: backup?.takeIf { runCatching { org.json.JSONArray(it).length() > 0 }.getOrDefault(false) }
+                ?: return
+            val array = org.json.JSONArray(raw)
+            val local = mutableListOf<CatalogPhoto>()
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i) ?: continue
+                val title = item.optString("title").trim()
+                val imageUrl = item.optString("imageUrl").trim()
+                val lat = item.optDouble("objectLat", Double.NaN)
+                val lng = item.optDouble("objectLng", Double.NaN)
+                if (title.isBlank() || !lat.isFinite() || !lng.isFinite()) continue
+                local.add(CatalogPhoto(
+                    item.optString("id", "local-photo-$i"), title, imageUrl, lat, lng,
+                    item.optDouble("cameraLat", lat), item.optDouble("cameraLng", lng),
+                    item.optDouble("imageWidthMeters", 3.0).toFloat().coerceIn(1f, 12f)
+                ))
+            }
+            if (local.isNotEmpty()) mergePhotos(local)
+        } catch (e: Exception) {
+            Log.w("TijdBeeldOverview", "Lokale fotogegevens konden niet worden gelezen", e)
+        }
+    }
+
+    private fun mergePhotos(incoming: List<CatalogPhoto>) {
+        val merged = photos.toMutableList()
+        for (photo in incoming) {
+            val existingIndex = merged.indexOfFirst { existing ->
+                (photo.id.isNotBlank() && existing.id == photo.id) ||
+                    (photo.imageUrl.isNotBlank() && existing.imageUrl == photo.imageUrl) ||
+                    (photo.title == OMMERSCHANS_PHOTO_TITLE && existing.title == OMMERSCHANS_PHOTO_TITLE)
+            }
+            if (existingIndex >= 0) {
+                // Gebruik de meest complete variant; behoud lokale modelkoppeling.
+                val existing = merged[existingIndex]
+                merged[existingIndex] = if (photo.imageUrl.isNotBlank() || existing.imageUrl.isBlank()) photo else existing
+            } else {
+                merged.add(photo)
+            }
+        }
+        photos = merged
+        catalogLoaded = photos.isNotEmpty()
+        if (catalogLoaded) renderPhotos()
+    }
+
     private fun loadCatalog() {
         Thread {
             var connection: HttpURLConnection? = null
@@ -127,15 +180,15 @@ class PhotoOverviewActivity : Activity() {
                     ))
                 }
                 if (loaded.isEmpty()) throw IllegalStateException("Geen geldige gepubliceerde foto's gevonden")
-                runOnUiThread {
-                    photos = loaded
-                    catalogLoaded = true
-                    renderPhotos()
-                }
+                runOnUiThread { mergePhotos(loaded) }
             } catch (e: Exception) {
                 runOnUiThread {
-                    content.removeAllViews()
-                    addMessage("De fotocatalogus kon niet worden geladen. Controleer je internetverbinding en probeer het later opnieuw.")
+                    if (photos.isEmpty()) {
+                        content.removeAllViews()
+                        addMessage("De fotocatalogus kon niet worden geladen. Controleer je internetverbinding en probeer het later opnieuw.")
+                    } else {
+                        renderPhotos()
+                    }
                 }
             } finally {
                 connection?.disconnect()
