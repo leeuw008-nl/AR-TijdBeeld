@@ -109,6 +109,7 @@ class AdminActivity : Activity() {
         Thread {
             var connection: HttpURLConnection? = null
             var status = 0
+            var responseBody = ""
             try {
                 connection = (URL("$WORKER_BASE_URL/auth/keep-session").openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
@@ -118,6 +119,8 @@ class AdminActivity : Activity() {
                     setRequestProperty("Authorization", "Bearer $sessionToken")
                 }
                 status = connection.responseCode
+                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                responseBody = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
             } catch (_: Exception) {
                 // Keep the local session during temporary network problems.
             } finally {
@@ -130,10 +133,7 @@ class AdminActivity : Activity() {
                     finish()
                 }
             } else if (status in 200..299) {
-                val body = runCatching {
-                    connection?.inputStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
-                }.getOrNull().orEmpty()
-                val expiresIn = runCatching { JSONObject(body).optLong("expiresIn", 24L * 60L * 60L) }
+                val expiresIn = runCatching { JSONObject(responseBody).optLong("expiresIn", 24L * 60L * 60L) }
                     .getOrDefault(24L * 60L * 60L)
                 prefs.edit().putLong("admin_session_expires_at", System.currentTimeMillis() + expiresIn * 1000L).apply()
             }
