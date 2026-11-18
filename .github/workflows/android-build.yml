@@ -1,8 +1,8 @@
-name: Android installation test - target SDK 32
+name: Android installation test - target SDK 33
 
 on:
   push:
-    branches: [ test/minimale-installatie, test/installatie-target32 ]
+    branches: [ test/minimale-installatie, test/installatie-target33 ]
   workflow_dispatch:
 
 permissions:
@@ -32,13 +32,13 @@ jobs:
       - name: Prepare installation test APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/Installatie-Test-Target32.apk
-          test -s dist/Installatie-Test-Target32.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/Installatie-Test-Target33.apk
+          test -s dist/Installatie-Test-Target33.apk
 
       - name: Upload installation test APK
         uses: actions/upload-artifact@v4
         with:
-          name: Installatie-Test-Target32
-          path: dist/Installatie-Test-Target32.apk
+          name: Installatie-Test-Target33
+          path: dist/Installatie-Test-Target33.apk
           if-no-files-found: error
           retention-days: 14
