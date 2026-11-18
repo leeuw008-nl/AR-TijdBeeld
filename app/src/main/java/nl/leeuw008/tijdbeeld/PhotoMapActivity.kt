@@ -132,6 +132,9 @@ class PhotoMapActivity : Activity() {
             })
         }
         val modelFootprint = JSONArray(OMMERSCHANS_FOOTPRINT_JSON)
+        val ommerschansPhotoId = JSONObject.quote(photos.firstOrNull {
+            it.title.trim() == OMMERSCHANS_PHOTO_TITLE
+        }?.id ?: "")
         val html = """
             <!doctype html>
             <html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -141,6 +144,7 @@ class PhotoMapActivity : Activity() {
             <body><div id="map"></div><script>
             const photos = $markers;
             const modelFootprint = $modelFootprint;
+            const ommerschansPhotoId = $ommerschansPhotoId;
             const map = L.map('map',{zoomControl:false});
             L.control.zoom({position:'topright'}).addTo(map);
             const zoomLevel = L.control({position:'topright'});
@@ -165,7 +169,19 @@ class PhotoMapActivity : Activity() {
                 color: '#174a7e', weight: 2, opacity: 0.95,
                 fillColor: '#398bd0', fillOpacity: 0.38
               }).addTo(map);
-              footprint.bindPopup('<strong>1900 - Ommerschans Hoofdgebouw</strong><br>Geprojecteerde contour van het 3D-model');
+              const popup = document.createElement('div');
+              const title = document.createElement('strong');
+              title.textContent = '1900 - Ommerschans Hoofdgebouw';
+              const button = document.createElement('button');
+              button.textContent = 'Bekijk 3D-model in AR';
+              button.style.marginTop = '8px';
+              button.onclick = () => {
+                if (ommerschansPhotoId) window.location.href = 'https://tijdbeeld.local/open?id=' + encodeURIComponent(ommerschansPhotoId);
+              };
+              popup.appendChild(title);
+              popup.appendChild(document.createElement('br'));
+              popup.appendChild(button);
+              footprint.bindPopup(popup);
               footprint.getLatLngs()[0].forEach(point => bounds.push([point.lat, point.lng]));
             });
             photos.forEach(p => {
