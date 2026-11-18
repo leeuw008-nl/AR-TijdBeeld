@@ -10,8 +10,10 @@ android {
     namespace = "nl.leeuw008.tijdbeeld"
     compileSdk = 35
 
-    // Compile only the isolated launcher activity; keep the same Android build configuration.
-    sourceSets.getByName("main").java.setSrcDirs(listOf("src/minimal/java", "src/diagnostic/java"))
+    sourceSets.getByName("main").apply {
+        java.setSrcDirs(listOf("src/minimal/java", "src/diagnostic/java"))
+        res.setSrcDirs(listOf("src/empty-res"))
+    }
 
     defaultConfig {
         applicationId = "nl.leeuw008.tijdbeeld.diagnose"
@@ -36,7 +38,7 @@ android {
 
     buildTypes {
         getByName("debug") {
-            manifestPlaceholders["appLabel"] = "TijdBeeld startscherm-test"
+            manifestPlaceholders["appLabel"] = "TijdBeeld minimale omgeving"
             if (hasFixedKeystore) {
                 signingConfig = signingConfigs.getByName("fixedDebug")
             }
@@ -54,5 +56,4 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.15.0")
 }
