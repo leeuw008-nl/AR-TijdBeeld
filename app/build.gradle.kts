@@ -25,6 +25,10 @@ android {
                 storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: ""
                 keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "tijdbeeld"
                 keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: ""
+                // Include both legacy JAR (v1) and APK Signature Scheme v2 signatures.
+                // This improves compatibility with Android package installers.
+                enableV1Signing = true
+                enableV2Signing = true
             }
         }
     }
