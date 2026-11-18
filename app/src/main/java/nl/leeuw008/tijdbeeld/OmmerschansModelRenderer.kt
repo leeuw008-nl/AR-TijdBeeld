@@ -128,11 +128,13 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             if (!anchorRequested && anchor == null) {
                 anchorRequested = true
                 report("Locatie gevonden. Het 3D-model wordt op de bouwlocatie geplaatst…")
-                // GLB supplied by the project uses Z-up. Rotate it into ARCore's Y-up frame.
-                val half = (-Math.PI / 4.0).toFloat()
+                // GLB origin: courtyard centre at WGS84 52.58737559898257, 6.391727308884152.
+                // Axes in the delivered model are +X east, +Y up and -Z true north.
+                // ARCore Geospatial uses east/up/south, so identity rotation aligns the axes;
+                // the building's 4.4-degree orientation is already present in the model geometry.
                 earth.resolveAnchorOnTerrainAsync(
-                    52.5873752, 6.3917274, 0.0,
-                    kotlin.math.sin(half), 0f, 0f, kotlin.math.cos(half)
+                    52.58737559898257, 6.391727308884152, 0.0,
+                    0f, 0f, 0f, 1f
                 ) { resolved, state ->
                     if (state == Anchor.TerrainAnchorState.SUCCESS && resolved != null) {
                         anchor = resolved
