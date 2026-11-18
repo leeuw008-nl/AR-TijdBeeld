@@ -2,7 +2,7 @@ name: Android build
 
 on:
   push:
-    branches: [ main, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes ]
+    branches: [ main, test/nieuwe-app-identiteit, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -82,7 +82,7 @@ jobs:
           python -m pip install --disable-pip-version-check numpy trimesh
           python tools/build_ommerschans_v8.py
 
-      - name: Build AR-TijdBeeld APK
+      - name: Build TijdBeeld Proef APK
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -94,18 +94,18 @@ jobs:
           mkdir -p dist
           APK_PATH="$(find app/build/outputs/apk/debug -type f -name '*.apk' -print -quit)"
           if [ -z "$APK_PATH" ]; then
-            echo "::error::AR-TijdBeeld APK was not generated."
+            echo "::error::TijdBeeld Proef APK was not generated."
             find app/build/outputs -maxdepth 5 -type f -print || true
             exit 1
           fi
-          cp "$APK_PATH" dist/AR-TijdBeeld.apk
-          test -s dist/AR-TijdBeeld.apk
+          cp "$APK_PATH" dist/TijdBeeld-Proef.apk
+          test -s dist/TijdBeeld-Proef.apk
 
       - name: Upload AR-TijdBeeld APK
         uses: actions/upload-artifact@v4
         with:
-          name: AR-TijdBeeld
-          path: dist/AR-TijdBeeld.apk
+          name: TijdBeeld-Proef
+          path: dist/TijdBeeld-Proef.apk
           if-no-files-found: error
           retention-days: 31
 
