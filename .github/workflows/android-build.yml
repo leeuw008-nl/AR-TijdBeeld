@@ -48,7 +48,12 @@ jobs:
 
       - name: Verify APK signature
         run: |
-          apksigner verify --verbose --print-certs dist/AR-TijdBeeld-DefaultSigning.apk
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::Android SDK apksigner was not found."
+            exit 1
+          fi
+          "$APKSIGNER" verify --verbose --print-certs dist/AR-TijdBeeld-DefaultSigning.apk
           sha256sum dist/AR-TijdBeeld-DefaultSigning.apk
 
       - name: Upload test APK
