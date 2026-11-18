@@ -4,7 +4,7 @@ import android.app.Activity
 import android.os.Bundle
 import android.widget.TextView
 
-private open class DiagnosticPlaceholderActivity(private val message: String) : Activity() {
+open class DiagnosticPlaceholderActivity(private val message: String) : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(TextView(this).apply { text = message; textSize = 18f; setPadding(32,32,32,32) })
