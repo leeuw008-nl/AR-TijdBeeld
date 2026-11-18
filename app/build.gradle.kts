@@ -15,11 +15,9 @@ android {
         versionName = "1.0"
     }
 
-    // Compile only the one test Activity. The original TijdBeeld source tree
-    // remains untouched in this isolated branch but is excluded from this APK.
-    sourceSets.getByName("main").java.setSrcDirs(
-        listOf("src/main/java/nl/leeuw008/installatietest")
-    )
+    // Use a separate source root so none of the original TijdBeeld classes
+    // are compiled into this diagnostic APK.
+    sourceSets.getByName("main").java.setSrcDirs(listOf("src/minimal/java"))
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
