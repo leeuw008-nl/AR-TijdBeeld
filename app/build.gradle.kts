@@ -3,43 +3,16 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-val fixedKeystoreFile = file("tijdbeeld-release.jks")
-val hasFixedKeystore = fixedKeystoreFile.exists()
-
 android {
-    namespace = "nl.leeuw008.tijdbeeld"
+    namespace = "nl.leeuw008.installatietest"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "nl.leeuw008.tijdbeeld.proefinstallatie"
-        minSdk = 24
-        targetSdk = 35
-        versionCode = 2
-        versionName = "0.1.0"
-    }
-
-    signingConfigs {
-        if (hasFixedKeystore) {
-            create("fixedDebug") {
-                storeFile = fixedKeystoreFile
-                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: ""
-                keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "tijdbeeld"
-                keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: ""
-                // Include both legacy JAR (v1) and APK Signature Scheme v2 signatures.
-                // This improves compatibility with Android package installers.
-                enableV1Signing = true
-                enableV2Signing = true
-            }
-        }
-    }
-
-    buildTypes {
-        getByName("debug") {
-            manifestPlaceholders["appLabel"] = "TijdBeeld Proef"
-            if (hasFixedKeystore) {
-                signingConfig = signingConfigs.getByName("fixedDebug")
-            }
-        }
+        applicationId = "nl.leeuw008.installatietest"
+        minSdk = 23
+        targetSdk = 28
+        versionCode = 1
+        versionName = "1.0"
     }
 
     compileOptions {
@@ -53,9 +26,4 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("com.google.ar:core:1.56.0")
-    implementation("com.google.android.gms:play-services-location:21.3.0")
-    // Required by ARCore Geospatial keyless authorization.
-    implementation("com.google.android.gms:play-services-auth:21.6.0")
 }
