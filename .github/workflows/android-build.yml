@@ -1,5 +1,6 @@
 name: Android build
 
+# Diagnostic build trigger for the isolated TijdBeeld Proef branch.
 on:
   push:
     branches: [ main, test/nieuwe-app-identiteit, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes ]
