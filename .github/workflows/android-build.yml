@@ -54,12 +54,12 @@ jobs:
             exit 1
           fi
           "$APKSIGNER" verify --verbose --print-certs dist/AR-TijdBeeld-NoAuth.apk
-          sha256sum dist/AR-TijdBeeld-DefaultSigning.apk
+          sha256sum dist/AR-TijdBeeld-NoAuth.apk
 
       - name: Upload test APK
         uses: actions/upload-artifact@v4
         with:
-          name: AR-TijdBeeld-DefaultSigning
-          path: dist/AR-TijdBeeld-DefaultSigning.apk
+          name: AR-TijdBeeld-NoAuth
+          path: dist/AR-TijdBeeld-NoAuth.apk
           if-no-files-found: error
           retention-days: 14
