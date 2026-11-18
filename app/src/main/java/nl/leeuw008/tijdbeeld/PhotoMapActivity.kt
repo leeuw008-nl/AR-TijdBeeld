@@ -127,6 +127,8 @@ class PhotoMapActivity : Activity() {
                 put("title", photo.title)
                 put("lat", photo.objectLat)
                 put("lng", photo.objectLng)
+                put("cameraLat", photo.cameraLat)
+                put("cameraLng", photo.cameraLng)
             })
         }
         val modelFootprint = JSONArray(OMMERSCHANS_FOOTPRINT_JSON)
@@ -167,16 +169,22 @@ class PhotoMapActivity : Activity() {
               footprint.getLatLngs()[0].forEach(point => bounds.push([point.lat, point.lng]));
             });
             photos.forEach(p => {
-              const marker = L.marker([p.lat,p.lng]).addTo(map);
-              const box = document.createElement('div');
-              const title = document.createElement('strong');
-              title.textContent = p.title;
-              const button = document.createElement('button');
-              button.textContent = 'Bekijk historische foto in AR';
-              button.style.marginTop = '8px';
-              button.onclick = () => { window.location.href = 'https://tijdbeeld.local/open?id=' + encodeURIComponent(p.id); };
-              box.appendChild(title); box.appendChild(document.createElement('br')); box.appendChild(button);
-              marker.bindPopup(box);
+              const makePhotoPopup = role => {
+                const box = document.createElement('div');
+                const title = document.createElement('strong');
+                title.textContent = p.title + ' — ' + role;
+                const button = document.createElement('button');
+                button.textContent = 'Bekijk historische foto in AR';
+                button.style.marginTop = '8px';
+                button.onclick = () => { window.location.href = 'https://tijdbeeld.local/open?id=' + encodeURIComponent(p.id); };
+                box.appendChild(title); box.appendChild(document.createElement('br')); box.appendChild(button);
+                return box;
+              };
+              const photographer = L.marker([p.cameraLat,p.cameraLng]).addTo(map);
+              photographer.bindPopup(makePhotoPopup('Fotograaf'));
+              const object = L.marker([p.lat,p.lng]).addTo(map);
+              object.bindPopup(makePhotoPopup('Object'));
+              bounds.push([p.cameraLat,p.cameraLng]);
               bounds.push([p.lat,p.lng]);
             });
             if (bounds.length === 1) map.setView(bounds[0],16);
@@ -193,7 +201,13 @@ class PhotoMapActivity : Activity() {
         val id = uri.getQueryParameter("id") ?: return true
         val photo = photos.firstOrNull { it.id == id } ?: return true
         if (photo.title.trim() == OMMERSCHANS_PHOTO_TITLE) {
-            startActivity(Intent(this, ModelArActivity::class.java))
+            startActivity(Intent(this, ModelArActivity::class.java).apply {
+                putExtra("photoId", photo.id)
+                putExtra("photoTitle", photo.title)
+                putExtra("photoImageUrl", photo.imageUrl)
+                putExtra("photoObjectLat", photo.objectLat)
+                putExtra("photoObjectLng", photo.objectLng)
+            })
             return true
         }
         startActivity(Intent(this, MainActivity::class.java).apply {
