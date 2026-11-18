@@ -1,0 +1,3 @@
+Temporary diagnostic branch only.
+Build the full AR-TijdBeeld application with targetSdk 32 and a separate package ID to isolate target SDK compatibility on Android 12.
+Production branches and files are unchanged.
