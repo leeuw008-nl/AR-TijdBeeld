@@ -10,6 +10,9 @@ android {
     namespace = "nl.leeuw008.tijdbeeld"
     compileSdk = 35
 
+    // Compile only the isolated launcher activity; keep the same Android build configuration.
+    sourceSets.getByName("main").java.setSrcDirs(listOf("src/minimal/java"))
+
     defaultConfig {
         applicationId = "nl.leeuw008.tijdbeeld.diagnose"
         minSdk = 24
@@ -51,5 +54,4 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.15.0")
 }
