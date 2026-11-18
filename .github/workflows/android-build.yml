@@ -2,7 +2,7 @@ name: Android build
 
 on:
   push:
-    branches: [ main, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes ]
+    branches: [ main, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes, feature/ommerschans-photo-georef ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -77,10 +77,11 @@ jobs:
             -destkeypass:env ANDROID_KEYSTORE_PASSWORD > /dev/null
           echo "Private key password verified."
 
-      - name: Generate Ommerschans v8 3D model asset
+      - name: Install georeferenced Ommerschans 1895 GLB asset
         run: |
-          python -m pip install --disable-pip-version-check numpy trimesh
-          python tools/build_ommerschans_v8.py
+          cp diversen/hoofdgebouw_ommerschans_1895.glb app/src/main/assets/ommerschans.glb
+          test -s app/src/main/assets/ommerschans.glb
+          echo "Georeferenced GLB copied from diversen/hoofdgebouw_ommerschans_1895.glb"
 
       - name: Build AR-TijdBeeld APK
         env:
