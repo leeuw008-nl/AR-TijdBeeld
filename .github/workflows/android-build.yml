@@ -32,8 +32,8 @@ jobs:
       - name: Prepare installation test APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/Installatie-Test-Target35-Target35.apk
-          test -s dist/Installatie-Test.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/Installatie-Test-Target35.apk
+          test -s dist/Installatie-Test-Target35.apk
 
       - name: Upload installation test APK
         uses: actions/upload-artifact@v4
