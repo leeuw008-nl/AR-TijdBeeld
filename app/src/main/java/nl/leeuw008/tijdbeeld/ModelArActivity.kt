@@ -25,11 +25,14 @@ class ModelArActivity : Activity() {
     private var session: Session? = null
     private var installRequested = false
     private var permissionRequested = false
+    private val photoTitle: String by lazy {
+        intent.getStringExtra("photoTitle")?.takeIf { it.isNotBlank() } ?: OMMERSCHANS_PHOTO_TITLE
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         status = TextView(this).apply {
-            text = OMMERSCHANS_PHOTO_TITLE + "\nCamera en geografische plaatsing starten…"
+            text = photoTitle + "\nCamera en geografische plaatsing starten…"
             textSize = 17f
             setTextColor(0xFFFFFFFF.toInt())
             setShadowLayer(5f, 1f, 1f, 0xFF000000.toInt())
@@ -40,7 +43,7 @@ class ModelArActivity : Activity() {
             setTextIsSelectable(true)
         }
         renderer = OmmerschansModelRenderer(this) { message ->
-            runOnUiThread { status.text = OMMERSCHANS_PHOTO_TITLE + "\n" + message }
+            runOnUiThread { status.text = photoTitle + "\n" + message }
         }
         glView = GLSurfaceView(this).apply {
             setEGLContextClientVersion(2)
