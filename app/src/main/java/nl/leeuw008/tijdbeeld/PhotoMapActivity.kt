@@ -121,7 +121,7 @@ class PhotoMapActivity : Activity() {
 
     private fun showMap() {
         val markers = JSONArray()
-        photos.forEach { photo ->
+        photos.filterNot { it.title.trim() == OMMERSCHANS_PHOTO_TITLE }.forEach { photo ->
             markers.put(JSONObject().apply {
                 put("id", photo.id)
                 put("title", photo.title)
@@ -129,6 +129,7 @@ class PhotoMapActivity : Activity() {
                 put("lng", photo.objectLng)
             })
         }
+        val modelFootprint = JSONArray(OMMERSCHANS_FOOTPRINT_JSON)
         val html = """
             <!doctype html>
             <html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -137,6 +138,7 @@ class PhotoMapActivity : Activity() {
             <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script></head>
             <body><div id="map"></div><script>
             const photos = $markers;
+            const modelFootprint = $modelFootprint;
             const map = L.map('map',{zoomControl:false});
             L.control.zoom({position:'topright'}).addTo(map);
             const zoomLevel = L.control({position:'topright'});
@@ -150,10 +152,20 @@ class PhotoMapActivity : Activity() {
               const el = zoomLevel.getContainer();
               if (el) el.textContent = 'Zoom ' + map.getZoom();
             });
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-              maxZoom: 19, attribution: '© OpenStreetMap-bijdragers'
+            L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png', {
+              minZoom: 6, maxZoom: 19,
+              attribution: 'Kaartgegevens © <a href="https://www.kadaster.nl">Kadaster / PDOK</a>'
             }).addTo(map);
             const bounds = [];
+            modelFootprint.forEach(rings => {
+              const polygonRings = rings.map(ring => ring.map(point => [point[0], point[1]]));
+              const footprint = L.polygon(polygonRings, {
+                color: '#174a7e', weight: 2, opacity: 0.95,
+                fillColor: '#398bd0', fillOpacity: 0.38
+              }).addTo(map);
+              footprint.bindPopup('<strong>1900 - Ommerschans Hoofdgebouw</strong><br>Geprojecteerde contour van het 3D-model');
+              footprint.getLatLngs()[0].forEach(point => bounds.push([point.lat, point.lng]));
+            });
             photos.forEach(p => {
               const marker = L.marker([p.lat,p.lng]).addTo(map);
               const box = document.createElement('div');
@@ -203,6 +215,8 @@ class PhotoMapActivity : Activity() {
     }
 
     companion object {
+        private const val OMMERSCHANS_PHOTO_TITLE = "1900 - Ommerschans Hoofdgebouw"
+        private const val OMMERSCHANS_FOOTPRINT_JSON = """[[[52.58688878,6.39097249],[52.58684427,6.39105918],[52.58691704,6.39252954],[52.58696826,6.39260225],[52.58785908,6.39248589],[52.58790453,6.39239936],[52.58783521,6.39092233],[52.58778219,6.39085154],[52.58688878,6.39097249]],[[52.58710027,6.39227125],[52.58769773,6.3921902],[52.58768949,6.39202628],[52.58709202,6.39210734],[52.58710027,6.39227125]],[[52.58724032,6.39132224],[52.58760182,6.39127566],[52.58759722,6.39117948],[52.58723572,6.39122606],[52.58724032,6.39132224]],[[52.58740627,6.39190634],[52.58740143,6.39180197],[52.58737946,6.39180507],[52.58737695,6.39174885],[52.587367,6.39175021],[52.58736978,6.39180599],[52.58734772,6.3918088],[52.58735292,6.39191342],[52.58740627,6.39190634]],[[52.58772512,6.39211552],[52.58775695,6.39211141],[52.58774802,6.3919251],[52.58771619,6.39192922],[52.58772512,6.39211552]],[[52.58769331,6.39143519],[52.58772496,6.3914312],[52.58771627,6.39124528],[52.58768462,6.39124927],[52.58769331,6.39143519]],[[52.58700197,6.39152846],[52.58703367,6.39152434],[52.58702474,6.39133886],[52.58699304,6.39134297],[52.58700197,6.39152846]],[[52.58703599,6.39220766],[52.58706709,6.39220359],[52.58705808,6.39201761],[52.58702697,6.39202168],[52.58703599,6.39220766]]]"""
         private const val PUBLIC_CATALOG_URL =
             "https://tijdbeeld.leeuw008.workers.dev/photos"
     }
