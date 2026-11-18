@@ -36,7 +36,7 @@ android {
 
     buildTypes {
         getByName("debug") {
-            manifestPlaceholders["appLabel"] = "TijdBeeld zonder locatiebibliotheek"
+            manifestPlaceholders["appLabel"] = "TijdBeeld met core-ktx"
             if (hasFixedKeystore) {
                 signingConfig = signingConfigs.getByName("fixedDebug")
             }
@@ -54,4 +54,5 @@ android {
 }
 
 dependencies {
+    implementation("androidx.core:core-ktx:1.15.0")
 }
