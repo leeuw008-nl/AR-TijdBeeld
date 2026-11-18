@@ -11,7 +11,7 @@ android {
     compileSdk = 35
 
     // Compile only the isolated launcher activity; keep the same Android build configuration.
-    sourceSets.getByName("main").java.setSrcDirs(listOf("src/minimal/java"))
+    sourceSets.getByName("main").java.setSrcDirs(listOf("src/minimal/java", "src/diagnostic/java"))
 
     defaultConfig {
         applicationId = "nl.leeuw008.tijdbeeld.diagnose"
@@ -36,7 +36,7 @@ android {
 
     buildTypes {
         getByName("debug") {
-            manifestPlaceholders["appLabel"] = "TijdBeeld met core-ktx"
+            manifestPlaceholders["appLabel"] = "TijdBeeld startscherm-test"
             if (hasFixedKeystore) {
                 signingConfig = signingConfigs.getByName("fixedDebug")
             }
