@@ -10,8 +10,11 @@ android {
     namespace = "nl.leeuw008.tijdbeeld"
     compileSdk = 35
 
+    // Compile only the isolated launcher activity; keep the same Android build configuration.
+    sourceSets.getByName("main").java.setSrcDirs(listOf("src/minimal/java"))
+
     defaultConfig {
-        applicationId = "nl.leeuw008.tijdbeeld"
+        applicationId = "nl.leeuw008.tijdbeeld.diagnose"
         minSdk = 24
         targetSdk = 35
         versionCode = 2
@@ -25,8 +28,6 @@ android {
                 storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: ""
                 keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "tijdbeeld"
                 keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: ""
-                // Include both legacy JAR (v1) and APK Signature Scheme v2 signatures.
-                // This improves compatibility with Android package installers.
                 enableV1Signing = true
                 enableV2Signing = true
             }
@@ -35,7 +36,7 @@ android {
 
     buildTypes {
         getByName("debug") {
-            manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
+            manifestPlaceholders["appLabel"] = "TijdBeeld zonder locatiebibliotheek"
             if (hasFixedKeystore) {
                 signingConfig = signingConfigs.getByName("fixedDebug")
             }
@@ -53,9 +54,4 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("com.google.ar:core:1.56.0")
-    implementation("com.google.android.gms:play-services-location:21.3.0")
-    // Required by ARCore Geospatial keyless authorization.
-    implementation("com.google.android.gms:play-services-auth:21.6.0")
 }
