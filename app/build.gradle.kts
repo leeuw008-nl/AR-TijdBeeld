@@ -11,7 +11,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "nl.leeuw008.tijdbeeld"
+        applicationId = "nl.leeuw008.tijdbeeld.proefinstallatie"
         minSdk = 24
         targetSdk = 35
         versionCode = 2
@@ -35,7 +35,7 @@ android {
 
     buildTypes {
         getByName("debug") {
-            manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
+            manifestPlaceholders["appLabel"] = "TijdBeeld Proef"
             if (hasFixedKeystore) {
                 signingConfig = signingConfigs.getByName("fixedDebug")
             }
