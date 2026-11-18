@@ -21,6 +21,11 @@ android {
     }
 
     signingConfigs {
+        // Match the successful minimal APK: Android debug key with v1 and v2 signatures.
+        getByName("debug") {
+            enableV1Signing = true
+            enableV2Signing = true
+        }
         if (hasFixedKeystore) {
             create("fixedDebug") {
                 storeFile = fixedKeystoreFile
