@@ -276,7 +276,13 @@ class PhotoOverviewActivity : Activity() {
 
     private fun openPhoto(photo: CatalogPhoto) {
         if (photo.title.trim() == OMMERSCHANS_PHOTO_TITLE) {
-            startActivity(Intent(this, ModelArActivity::class.java))
+            startActivity(Intent(this, ModelArActivity::class.java).apply {
+                putExtra("photoId", photo.id)
+                putExtra("photoTitle", photo.title)
+                putExtra("photoImageUrl", photo.imageUrl)
+                putExtra("photoObjectLat", photo.objectLat)
+                putExtra("photoObjectLng", photo.objectLng)
+            })
             return
         }
         startActivity(Intent(this, MainActivity::class.java).apply {
