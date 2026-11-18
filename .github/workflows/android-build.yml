@@ -2,7 +2,7 @@ name: Android build
 
 on:
   push:
-    branches: [ main, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes, feature/ommerschans-photo-georef ]
+    branches: [ main, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes, feature/ommerschans-photo-georef, test/fullapp-target32-same-app ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -52,7 +52,6 @@ jobs:
             exit 1
           fi
           keytool -list -keystore app/tijdbeeld-release.jks -alias "$ANDROID_KEY_ALIAS" -storepass:env ANDROID_KEYSTORE_PASSWORD > /dev/null
-          echo "Keystore file, alias, and keystore password verified."
 
       - name: Verify private key password
         if: hashFiles('app/tijdbeeld-release.jks') != ''
@@ -75,42 +74,36 @@ jobs:
             -deststoretype PKCS12 \
             -deststorepass:env ANDROID_KEYSTORE_PASSWORD \
             -destkeypass:env ANDROID_KEYSTORE_PASSWORD > /dev/null
-          echo "Private key password verified."
 
       - name: Install georeferenced Ommerschans 1895 GLB asset
         run: |
           cp diversen/hoofdgebouw_ommerschans_1895.glb app/src/main/assets/ommerschans.glb
           test -s app/src/main/assets/ommerschans.glb
-          echo "Georeferenced GLB copied from diversen/hoofdgebouw_ommerschans_1895.glb"
 
-      - name: Build AR-TijdBeeld APK
+      - name: Build AR-TijdBeeld SDK 32 diagnostic APK
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: gradle --no-daemon :app:assembleDebug
 
-      - name: Prepare AR-TijdBeeld APK
+      - name: Prepare AR-TijdBeeld SDK 32 diagnostic APK
         run: |
           mkdir -p dist
           APK_PATH="$(find app/build/outputs/apk/debug -type f -name '*.apk' -print -quit)"
-          if [ -z "$APK_PATH" ]; then
-            echo "::error::AR-TijdBeeld APK was not generated."
-            find app/build/outputs -maxdepth 5 -type f -print || true
-            exit 1
-          fi
-          cp "$APK_PATH" dist/AR-TijdBeeld.apk
-          test -s dist/AR-TijdBeeld.apk
+          test -n "$APK_PATH"
+          cp "$APK_PATH" dist/AR-TijdBeeld-SDK32-Diagnose.apk
+          test -s dist/AR-TijdBeeld-SDK32-Diagnose.apk
 
-      - name: Upload AR-TijdBeeld APK
+      - name: Upload AR-TijdBeeld SDK 32 diagnostic APK
         uses: actions/upload-artifact@v4
         with:
-          name: AR-TijdBeeld
-          path: dist/AR-TijdBeeld.apk
+          name: AR-TijdBeeld-SDK32-Diagnose
+          path: dist/AR-TijdBeeld-SDK32-Diagnose.apk
           if-no-files-found: error
           retention-days: 31
 
-      - name: Show debug signing fingerprint
+      - name: Show signing fingerprint
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
