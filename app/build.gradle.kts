@@ -10,7 +10,7 @@ android {
     defaultConfig {
         applicationId = "nl.leeuw008.installatietest"
         minSdk = 23
-        targetSdk = 31
+        targetSdk = 32
         versionCode = 1
         versionName = "1.0"
     }
