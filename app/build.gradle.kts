@@ -4,7 +4,8 @@ plugins {
 }
 
 val fixedKeystoreFile = file("tijdbeeld-release.jks")
-val hasFixedKeystore = fixedKeystoreFile.exists()
+// Diagnostic only: use the standard Android debug certificate to isolate signing compatibility.
+val hasFixedKeystore = false
 
 android {
     namespace = "nl.leeuw008.tijdbeeld"
