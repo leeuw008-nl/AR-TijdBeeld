@@ -56,6 +56,4 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("com.google.ar:core:1.56.0")
     implementation("com.google.android.gms:play-services-location:21.3.0")
-    // Required by ARCore Geospatial keyless authorization.
-    implementation("com.google.android.gms:play-services-auth:21.6.0")
 }
