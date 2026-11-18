@@ -1,8 +1,8 @@
-name: Android build - full app default signing
+name: Android build - full app without unused auth dependency
 
 on:
   push:
-    branches: [ test/fullapp-default-signing ]
+    branches: [ test/fullapp-no-auth-dependency ]
   workflow_dispatch:
 
 permissions:
@@ -31,7 +31,7 @@ jobs:
           python -m pip install --disable-pip-version-check numpy trimesh
           python tools/build_ommerschans_v8.py
 
-      - name: Build full AR-TijdBeeld APK with standard Android debug signing
+      - name: Build full AR-TijdBeeld APK without unused Play Services Auth
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Prepare test APK
@@ -43,8 +43,8 @@ jobs:
             find app/build/outputs -maxdepth 5 -type f -print || true
             exit 1
           fi
-          cp "$APK_PATH" dist/AR-TijdBeeld-DefaultSigning.apk
-          test -s dist/AR-TijdBeeld-DefaultSigning.apk
+          cp "$APK_PATH" dist/AR-TijdBeeld-NoAuth.apk
+          test -s dist/AR-TijdBeeld-NoAuth.apk
 
       - name: Verify APK signature
         run: |
