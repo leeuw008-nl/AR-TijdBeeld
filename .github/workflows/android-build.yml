@@ -38,7 +38,7 @@ jobs:
       - name: Upload installation test APK
         uses: actions/upload-artifact@v4
         with:
-          name: Installatie-Test
-          path: dist/Installatie-Test.apk
+          name: Installatie-Test-Target35
+          path: dist/Installatie-Test-Target35.apk
           if-no-files-found: error
           retention-days: 14
