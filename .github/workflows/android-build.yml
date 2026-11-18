@@ -37,7 +37,8 @@ jobs:
             test -s app/tijdbeeld-release.jks
             echo "Fixed Android signing key prepared."
           else
-            echo "No signing secret available; using the standard debug key."
+            echo "::error::ANDROID_KEYSTORE_BASE64 is missing. Refusing to build an APK with a temporary debug signing key."
+            exit 1
           fi
 
       - name: Verify fixed Android signing key
