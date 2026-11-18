@@ -53,7 +53,7 @@ jobs:
             echo "::error::Android SDK apksigner was not found."
             exit 1
           fi
-          "$APKSIGNER" verify --verbose --print-certs dist/AR-TijdBeeld-DefaultSigning.apk
+          "$APKSIGNER" verify --verbose --print-certs dist/AR-TijdBeeld-NoAuth.apk
           sha256sum dist/AR-TijdBeeld-DefaultSigning.apk
 
       - name: Upload test APK
