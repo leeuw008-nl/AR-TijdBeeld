@@ -33,7 +33,7 @@ android {
 
     buildTypes {
         getByName("debug") {
-            manifestPlaceholders["appLabel"] = "TijdBeeld zonder ARCore"
+            manifestPlaceholders["appLabel"] = "TijdBeeld zonder locatiebibliotheek"
             if (hasFixedKeystore) {
                 signingConfig = signingConfigs.getByName("fixedDebug")
             }
@@ -52,5 +52,4 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
-    implementation("com.google.android.gms:play-services-location:21.3.0")
 }
