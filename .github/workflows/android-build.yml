@@ -1,8 +1,8 @@
-name: Android build - full app without unused auth dependency
+name: Android build - full app without ARCore diagnostic
 
 on:
   push:
-    branches: [ test/fullapp-no-auth-dependency ]
+    branches: [ test/fullapp-without-arcore ]
   workflow_dispatch:
 
 permissions:
@@ -31,7 +31,7 @@ jobs:
           python -m pip install --disable-pip-version-check numpy trimesh
           python tools/build_ommerschans_v8.py
 
-      - name: Build full AR-TijdBeeld APK without unused Play Services Auth
+      - name: Build diagnostic app without ARCore
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Prepare test APK
@@ -43,8 +43,8 @@ jobs:
             find app/build/outputs -maxdepth 5 -type f -print || true
             exit 1
           fi
-          cp "$APK_PATH" dist/AR-TijdBeeld-NoAuth.apk
-          test -s dist/AR-TijdBeeld-NoAuth.apk
+          cp "$APK_PATH" dist/AR-TijdBeeld-NoARCore.apk
+          test -s dist/AR-TijdBeeld-NoARCore.apk
 
       - name: Verify APK signature
         run: |
@@ -53,13 +53,13 @@ jobs:
             echo "::error::Android SDK apksigner was not found."
             exit 1
           fi
-          "$APKSIGNER" verify --verbose --print-certs dist/AR-TijdBeeld-NoAuth.apk
-          sha256sum dist/AR-TijdBeeld-NoAuth.apk
+          "$APKSIGNER" verify --verbose --print-certs dist/AR-TijdBeeld-NoARCore.apk
+          sha256sum dist/AR-TijdBeeld-NoARCore.apk
 
       - name: Upload test APK
         uses: actions/upload-artifact@v4
         with:
-          name: AR-TijdBeeld-NoAuth
-          path: dist/AR-TijdBeeld-NoAuth.apk
+          name: AR-TijdBeeld-NoARCore
+          path: dist/AR-TijdBeeld-NoARCore.apk
           if-no-files-found: error
           retention-days: 14
