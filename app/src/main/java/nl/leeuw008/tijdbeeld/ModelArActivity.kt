@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.opengl.GLSurfaceView
 import android.os.Bundle
 import android.view.Gravity
+import android.view.MotionEvent
 import android.widget.FrameLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -56,6 +57,29 @@ class ModelArActivity : Activity() {
             setEGLContextClientVersion(2)
             setRenderer(renderer)
             renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+        }
+        if (standalonePreview) {
+            var previousX = 0f
+            var previousY = 0f
+            glView.setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        previousX = event.x
+                        previousY = event.y
+                        true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val deltaX = event.x - previousX
+                        val deltaY = event.y - previousY
+                        renderer.rotateStandalone(deltaX, deltaY)
+                        previousX = event.x
+                        previousY = event.y
+                        true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> true
+                    else -> true
+                }
+            }
         }
         val root = FrameLayout(this)
         root.addView(glView, FrameLayout.LayoutParams(-1, -1))
