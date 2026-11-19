@@ -8,19 +8,27 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "nl.leeuw008.tijdbeeld.diagnose32"
+        applicationId = "nl.leeuw008.tijdbeeld.diagnose32stable"
         minSdk = 24
         targetSdk = 32
-        versionCode = 3
-        versionName = "0.1.1"
+        versionCode = 1
+        versionName = "0.1.2"
+    }
+
+    signingConfigs {
+        create("persistentDiagnostic") {
+            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {
         getByName("debug") {
-            manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
-            // Use the standard Android debug key, as in the APK confirmed installable
-            // on the Samsung S10+ (target SDK 32 diagnostic build).
-            signingConfig = signingConfigs.getByName("debug")
+            manifestPlaceholders["appLabel"] = "AR-TijdBeeld nieuw"
+            // Reuse one cached debug keystore so later APKs remain valid updates.
+            signingConfig = signingConfigs.getByName("persistentDiagnostic")
         }
     }
 
