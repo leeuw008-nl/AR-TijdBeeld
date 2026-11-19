@@ -1,6 +1,7 @@
 package nl.leeuw008.tijdbeeld
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
@@ -259,6 +260,14 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         glModelTextures[imageIndex]?.let { return it }
         val data = embeddedImages.getOrNull(imageIndex) ?: return 0
         val bitmap = BitmapFactory.decodeByteArray(data, 0, data.size, BitmapFactory.Options().apply { inScaled = false }) ?: return 0
+        fun powerOfTwo(value: Int): Int {
+            var result = 1
+            while (result < value) result = result shl 1
+            return result
+        }
+        val uploadBitmap = if ((bitmap.width and (bitmap.width - 1)) != 0 || (bitmap.height and (bitmap.height - 1)) != 0) {
+            Bitmap.createScaledBitmap(bitmap, powerOfTwo(bitmap.width), powerOfTwo(bitmap.height), true)
+        } else bitmap
         val ids = IntArray(1)
         GLES20.glGenTextures(1, ids, 0)
         val id = ids[0]
@@ -268,8 +277,9 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_REPEAT)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_REPEAT)
-        GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
+        GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, uploadBitmap, 0)
         GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+        if (uploadBitmap !== bitmap) uploadBitmap.recycle()
         bitmap.recycle()
         glModelTextures[imageIndex] = id
         return id
