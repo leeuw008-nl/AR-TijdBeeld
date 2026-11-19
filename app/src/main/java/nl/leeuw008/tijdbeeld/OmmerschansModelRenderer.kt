@@ -39,6 +39,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     @Volatile private var standaloneRotationX = 0f
     @Volatile private var standaloneRotationY = 0f
     @Volatile private var standaloneCameraDistance = 7.5f
+    @Volatile private var standaloneZoomSensitivity = 0.5f
     private var cameraTexture = 0
     private var cameraProgram = 0
     private var modelProgram = 0
@@ -104,14 +105,23 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
 
     fun setDisplayRotation(rotation: Int) { displayRotation = rotation; geometryChanged = true }
 
+    fun setZoomSensitivity(value: Float) {
+        if (standaloneMode && value.isFinite()) standaloneZoomSensitivity = value.coerceIn(0f, 1f)
+    }
+
     fun rotateStandalone(deltaX: Float, deltaY: Float) {
         if (!standaloneMode) return
-        standaloneRotationY = (standaloneRotationY + deltaX * 0.045f) % 360f
-        standaloneRotationX = (standaloneRotationX + deltaY * 0.045f) % 360f
+        // Reduce drag movement progressively as the camera gets closer to the model.
+        val zoomDamping = (standaloneCameraDistance / 7.5f).coerceIn(0.08f, 1f)
+        standaloneRotationY = (standaloneRotationY + deltaX * 0.045f * zoomDamping) % 360f
+        standaloneRotationX = (standaloneRotationX + deltaY * 0.045f * zoomDamping) % 360f
     }
 
     fun zoomStandalone(factor: Float) {
-        if (standaloneMode && factor.isFinite() && factor > 0f) standaloneCameraDistance = (standaloneCameraDistance / factor.coerceIn(0.1f, 10f).let { kotlin.math.sqrt(it) }).coerceIn(0.65f, 24f)
+        if (standaloneMode && factor.isFinite() && factor > 0f) {
+            val exponent = 0.15f + standaloneZoomSensitivity * 0.85f
+            standaloneCameraDistance = (standaloneCameraDistance / factor.coerceIn(0.1f, 10f).let { it.toDouble().pow(exponent.toDouble()).toFloat() }).coerceIn(0.65f, 24f)
+        }
     }
 
     fun setGeoTarget(latitude: Double, longitude: Double) {
