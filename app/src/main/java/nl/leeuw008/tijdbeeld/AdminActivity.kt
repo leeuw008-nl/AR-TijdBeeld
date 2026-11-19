@@ -735,6 +735,7 @@ class AdminActivity : Activity() {
         if (photos.isEmpty() || !::titleInput.isInitialized) return
         val p = photos[selected]
         p.title = titleInput.text.toString().trim()
+        modelPreviewButton?.visibility = if (p.title == OMMERSCHANS_PHOTO_TITLE) View.VISIBLE else View.GONE
         p.imageUrl = urlInput.text.toString().trim()
         p.objectLat = objectLatInput.numberOr(p.objectLat)
         p.objectLng = objectLngInput.numberOr(p.objectLng)
