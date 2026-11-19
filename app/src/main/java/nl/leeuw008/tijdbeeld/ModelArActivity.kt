@@ -61,22 +61,52 @@ class ModelArActivity : Activity() {
         if (standalonePreview) {
             var previousX = 0f
             var previousY = 0f
+            var previousSpan = 0f
+            fun span(event: MotionEvent): Float {
+                if (event.pointerCount < 2) return 0f
+                val dx = event.getX(0) - event.getX(1)
+                val dy = event.getY(0) - event.getY(1)
+                return kotlin.math.sqrt(dx * dx + dy * dy)
+            }
             glView.setOnTouchListener { _, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         previousX = event.x
                         previousY = event.y
+                        previousSpan = 0f
+                        true
+                    }
+                    MotionEvent.ACTION_POINTER_DOWN -> {
+                        previousSpan = span(event)
                         true
                     }
                     MotionEvent.ACTION_MOVE -> {
-                        val deltaX = event.x - previousX
-                        val deltaY = event.y - previousY
-                        renderer.rotateStandalone(deltaX, deltaY)
-                        previousX = event.x
-                        previousY = event.y
+                        if (event.pointerCount >= 2) {
+                            val currentSpan = span(event)
+                            if (previousSpan > 0f && currentSpan > 0f) renderer.zoomStandalone(currentSpan / previousSpan)
+                            previousSpan = currentSpan
+                        } else {
+                            val deltaX = event.x - previousX
+                            val deltaY = event.y - previousY
+                            renderer.rotateStandalone(deltaX, deltaY)
+                            previousX = event.x
+                            previousY = event.y
+                        }
                         true
                     }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> true
+                    MotionEvent.ACTION_POINTER_UP -> {
+                        previousSpan = 0f
+                        val remaining = if (event.actionIndex == 0) 1 else 0
+                        if (remaining < event.pointerCount) {
+                            previousX = event.getX(remaining)
+                            previousY = event.getY(remaining)
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        previousSpan = 0f
+                        true
+                    }
                     else -> true
                 }
             }
