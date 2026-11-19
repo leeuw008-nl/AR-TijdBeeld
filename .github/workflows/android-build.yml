@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: tijdbeeld-android-build-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -77,6 +81,14 @@ jobs:
           fi
           cp "$APK_PATH" dist/AR-TijdBeeld.apk
           test -s dist/AR-TijdBeeld.apk
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::Android apksigner was not found."
+            exit 1
+          fi
+          "$APKSIGNER" verify --verbose --print-certs dist/AR-TijdBeeld.apk
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='1'|application-label:'AR-TijdBeeld nieuw'"
 
       - name: Upload AR-TijdBeeld APK
         uses: actions/upload-artifact@v4
