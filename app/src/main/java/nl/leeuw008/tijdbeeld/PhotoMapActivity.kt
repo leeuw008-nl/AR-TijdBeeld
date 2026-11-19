@@ -162,7 +162,8 @@ class PhotoMapActivity : Activity() {
               minZoom: 6, maxZoom: 19,
               attribution: 'Kaartgegevens © <a href="https://www.kadaster.nl">Kadaster / PDOK</a>'
             }).addTo(map);
-            const bounds = [];
+            const modelBounds = [];
+            const photoBounds = [];
             modelFootprint.forEach(rings => {
               // Elk item in modelFootprint is één buitenring met [latitude, longitude]-punten.
               const polygonRings = [rings.map(point => [point[0], point[1]])];
@@ -183,16 +184,19 @@ class PhotoMapActivity : Activity() {
               popup.appendChild(document.createElement('br'));
               popup.appendChild(button);
               footprint.bindPopup(popup);
-              footprint.getLatLngs()[0].forEach(point => bounds.push([point.lat, point.lng]));
+              footprint.getLatLngs()[0].forEach(point => modelBounds.push([point.lat, point.lng]));
             });
             // De binnenmuur is een contourlijn, geen gevuld vlak; zo blijven de gebouwen op
             // het binnenplein afzonderlijk zichtbaar.
             const innerWallPoints = modelInnerWall.map(point => [point[0], point[1]]);
+            L.polyline(innerWallPoints, {
+              color: '#ffffff', weight: 7, opacity: 0.95, lineCap: 'round', lineJoin: 'round'
+            }).addTo(map);
             const innerWall = L.polyline(innerWallPoints, {
-              color: '#d14b32', weight: 3, opacity: 1, lineCap: 'round', lineJoin: 'round'
+              color: '#d12f20', weight: 4, opacity: 1, lineCap: 'round', lineJoin: 'round'
             }).addTo(map);
             innerWall.bindPopup('Binnenmuur hoofdgebouw Ommerschans');
-            innerWallPoints.forEach(point => bounds.push(point));
+            innerWallPoints.forEach(point => modelBounds.push(point));
             photos.forEach(p => {
               const makePhotoPopup = role => {
                 const box = document.createElement('div');
@@ -209,11 +213,13 @@ class PhotoMapActivity : Activity() {
               photographer.bindPopup(makePhotoPopup('Fotograaf'));
               const object = L.marker([p.lat,p.lng]).addTo(map);
               object.bindPopup(makePhotoPopup('Object'));
-              bounds.push([p.cameraLat,p.cameraLng]);
-              bounds.push([p.lat,p.lng]);
+              photoBounds.push([p.cameraLat,p.cameraLng]);
+              photoBounds.push([p.lat,p.lng]);
             });
-            if (bounds.length === 1) map.setView(bounds[0],16);
-            else map.fitBounds(bounds,{padding:[35,35],maxZoom:16});
+            const initialBounds = modelBounds.length > 0 ? modelBounds : photoBounds;
+            if (initialBounds.length === 1) map.setView(initialBounds[0],17);
+            else if (initialBounds.length > 1) map.fitBounds(initialBounds,{padding:[35,35],maxZoom:17});
+            else map.setView([52.5873756,6.3917273],17);
             </script></body></html>
         """.trimIndent()
         webView.loadDataWithBaseURL("https://tijdbeeld.local/", html, "text/html", "UTF-8", null)
