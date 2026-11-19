@@ -139,6 +139,12 @@ class PhotoMapActivity : Activity() {
             assets.open("ommerschans-topdown.json").bufferedReader(Charsets.UTF_8).use { it.readText() }
         )
         val ommerschansPhotoId = JSONObject.quote(OMMERSCHANS_MAP_ID)
+        val mapBackground = getSharedPreferences("tijdbeeld_admin", MODE_PRIVATE).getString("map_background", "pdok")
+        val tileLayerJs = when (mapBackground) {
+            "osm" -> "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);"
+            "opentopo" -> "L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap (CC-BY-SA)'}).addTo(map);"
+            else -> "L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png',{minZoom:6,maxZoom:19,attribution:'© Kadaster / PDOK'}).addTo(map);"
+        }
         val html = """
             <!doctype html>
             <html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -164,10 +170,7 @@ class PhotoMapActivity : Activity() {
               const el = zoomLevel.getContainer();
               if (el) el.textContent = 'Zoom ' + map.getZoom();
             });
-            L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png', {
-              minZoom: 6, maxZoom: 19,
-              attribution: 'Kaartgegevens © <a href="https://www.kadaster.nl">Kadaster / PDOK</a>'
-            }).addTo(map);
+            $tileLayerJs
             const photoBounds = [];
             // Georeferenced orthographic projection of the actual GLB mesh.
             const modelOverlay = L.imageOverlay(modelOverlayUrl, modelBounds, {
