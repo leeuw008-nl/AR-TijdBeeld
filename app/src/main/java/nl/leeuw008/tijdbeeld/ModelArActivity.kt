@@ -9,6 +9,8 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.MotionEvent
 import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import com.google.ar.core.ArCoreApk
@@ -113,10 +115,61 @@ class ModelArActivity : Activity() {
         }
         val root = FrameLayout(this)
         root.addView(glView, FrameLayout.LayoutParams(-1, -1))
-        root.addView(status, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        val statusParams = FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
+            topMargin = dp(58)
+        }
+        root.addView(status, statusParams)
+
+        val backButton = TextView(this).apply {
+            text = "‹"
+            textSize = 38f
+            setTextColor(0xFFFFFFFF.toInt())
+            gravity = Gravity.CENTER
+            contentDescription = "Terug"
+            setBackgroundResource(android.R.drawable.btn_default)
+            setOnClickListener { finish() }
+        }
+        root.addView(backButton, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.TOP or Gravity.START).apply {
+            leftMargin = dp(10)
+            topMargin = dp(8)
+        })
+
+        if (standalonePreview) {
+            val sensitivityLabel = TextView(this).apply {
+                text = "Zoomgevoeligheid: 50%"
+                textSize = 14f
+                setTextColor(0xFFFFFFFF.toInt())
+                gravity = Gravity.CENTER_HORIZONTAL
+            }
+            val sensitivitySlider = SeekBar(this).apply {
+                max = 100
+                progress = 50
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                        renderer.setZoomSensitivity(progress / 100f)
+                        sensitivityLabel.text = "Zoomgevoeligheid: $progress%"
+                    }
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+                })
+            }
+            val controls = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+                setBackgroundColor(0xDD102A43.toInt())
+                addView(sensitivityLabel, LinearLayout.LayoutParams(-1, -2))
+                addView(sensitivitySlider, LinearLayout.LayoutParams(-1, -2))
+            }
+            root.addView(controls, FrameLayout.LayoutParams(dp(280), -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                bottomMargin = dp(24)
+            })
+        }
         setContentView(root)
         requestPermissionsIfNeeded()
     }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
 
     private fun requestPermissionsIfNeeded() {
         if (standalonePreview) return
