@@ -26,7 +26,7 @@ android {
 
     buildTypes {
         getByName("debug") {
-            manifestPlaceholders["appLabel"] = "AR-TijdBeeld nieuw"
+            manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
             // Reuse one cached debug keystore so later APKs remain valid updates.
             signingConfig = signingConfigs.getByName("persistentDiagnostic")
         }
