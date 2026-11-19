@@ -1,11 +1,6 @@
 name: Deploy TijdBeeld Worker
 
 on:
-  push:
-    branches: [ fix/persistent-admin-session-and-inner-wall ]
-    paths:
-      - 'worker/**'
-      - '.github/workflows/deploy-worker.yml'
   workflow_dispatch:
 
 permissions:
