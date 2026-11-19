@@ -33,6 +33,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     private val standaloneRotatedModel = FloatArray(16)
     @Volatile private var standaloneRotationX = 0f
     @Volatile private var standaloneRotationY = 0f
+    @Volatile private var standaloneCameraDistance = 7.5f
     private var cameraTexture = 0
     private var cameraProgram = 0
     private var modelProgram = 0
@@ -40,6 +41,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     private var cameraUv = 0
     private var cameraSampler = 0
     private var modelPos = 0
+    private var modelNormal = 0
     private var modelMvp = 0
     private var modelColor = 0
     private val view = FloatArray(16)
@@ -56,7 +58,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     private val uv = floats(FloatArray(8))
     private val baseUv = floats(floatArrayOf(0f,1f, 1f,1f, 0f,0f, 1f,0f))
 
-    data class Part(val vertices: FloatBuffer, val indices: ShortBuffer?, val count: Int, val color: FloatArray)
+    data class Part(val vertices: FloatBuffer, val indices: ShortBuffer?, val count: Int, val color: FloatArray, val normals: FloatBuffer)
 
     private fun report(message: String) {
         if (message != lastStatus) { lastStatus = message; status(message) }
@@ -76,6 +78,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         cameraSampler = GLES20.glGetUniformLocation(cameraProgram, "sCamera")
         modelProgram = program(MODEL_VS, MODEL_FS)
         modelPos = GLES20.glGetAttribLocation(modelProgram, "aPos")
+        modelNormal = GLES20.glGetAttribLocation(modelProgram, "aNormal")
         modelMvp = GLES20.glGetUniformLocation(modelProgram, "uMvp")
         modelColor = GLES20.glGetUniformLocation(modelProgram, "uColor")
         val ids = IntArray(1)
@@ -93,6 +96,10 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         if (!standaloneMode) return
         standaloneRotationY = (standaloneRotationY + deltaX * 0.55f) % 360f
         standaloneRotationX = (standaloneRotationX + deltaY * 0.55f) % 360f
+    }
+
+    fun zoomStandalone(factor: Float) {
+        if (standaloneMode && factor.isFinite() && factor > 0f) standaloneCameraDistance = (standaloneCameraDistance / factor).coerceIn(2.2f, 24f)
     }
 
     fun setGeoTarget(latitude: Double, longitude: Double) {
@@ -188,6 +195,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                 part.vertices.position(0)
                 GLES20.glEnableVertexAttribArray(modelPos)
                 GLES20.glVertexAttribPointer(modelPos,3,GLES20.GL_FLOAT,false,0,part.vertices)
+                GLES20.glEnableVertexAttribArray(modelNormal)
+                GLES20.glVertexAttribPointer(modelNormal,3,GLES20.GL_FLOAT,false,0,part.normals)
                 GLES20.glUniform4fv(modelColor,1,part.color,0)
                 if (part.indices != null) {
                     part.indices.position(0)
@@ -196,6 +205,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                     GLES20.glDrawArrays(GLES20.GL_TRIANGLES,0,part.count)
                 }
                 GLES20.glDisableVertexAttribArray(modelPos)
+            GLES20.glDisableVertexAttribArray(modelNormal)
+                GLES20.glDisableVertexAttribArray(modelNormal)
             }
             GLES20.glDisable(GLES20.GL_CULL_FACE)
         } catch (e: Exception) {
@@ -235,7 +246,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         }
         val aspect = width.toFloat() / height.coerceAtLeast(1).toFloat()
         Matrix.perspectiveM(projection, 0, 45f, aspect.coerceAtLeast(0.1f), 0.1f, 100f)
-        Matrix.setLookAtM(view, 0, 0f, 2.0f, 7.5f, 0f, 0f, 0f, 0f, 1f, 0f)
+        Matrix.setLookAtM(view, 0, 0f, standaloneCameraDistance * 0.24f, standaloneCameraDistance, 0f, 0f, 0f, 0f, 1f, 0f)
         Matrix.setRotateM(standaloneRotation, 0, standaloneRotationX, 1f, 0f, 0f)
         Matrix.rotateM(standaloneRotation, 0, standaloneRotationY, 0f, 1f, 0f)
         Matrix.multiplyMM(standaloneRotatedModel, 0, standaloneRotation, 0, standaloneModel, 0)
@@ -249,6 +260,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             part.vertices.position(0)
             GLES20.glEnableVertexAttribArray(modelPos)
             GLES20.glVertexAttribPointer(modelPos, 3, GLES20.GL_FLOAT, false, 0, part.vertices)
+            GLES20.glEnableVertexAttribArray(modelNormal)
+            GLES20.glVertexAttribPointer(modelNormal, 3, GLES20.GL_FLOAT, false, 0, part.normals)
             GLES20.glUniform4fv(modelColor, 1, part.color, 0)
             if (part.indices != null) {
                 part.indices.position(0)
@@ -303,6 +316,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         val views = root.getJSONArray("bufferViews")
         val accessors = root.getJSONArray("accessors")
         val meshes = root.getJSONArray("meshes")
+        val materials = root.optJSONArray("materials")
         val nodes = root.optJSONArray("nodes")
         val parts = mutableListOf<Part>()
 
@@ -407,16 +421,27 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                 }
                 require(indexList.size % 3 == 0) { "Mesh bevat geen volledige driehoeken" }
                 // Expand indexed triangles. This avoids the 16-bit index limit on OpenGL ES 2.
-                val vertexData = ByteBuffer.allocateDirect(indexList.size * 3 * 4).order(ByteOrder.nativeOrder())
-                for (index in indexList) {
-                    val v = rawPositions[index]
-                    val x = v[0]; val y = v[1]; val z = v[2]
-                    vertexData.putFloat(world[0]*x + world[4]*y + world[8]*z + world[12])
-                    vertexData.putFloat(world[1]*x + world[5]*y + world[9]*z + world[13])
-                    vertexData.putFloat(world[2]*x + world[6]*y + world[10]*z + world[14])
+                val transformed = Array(indexList.size) { j ->
+                    val v = rawPositions[indexList[j]]; val x=v[0]; val y=v[1]; val z=v[2]
+                    floatArrayOf(world[0]*x+world[4]*y+world[8]*z+world[12], world[1]*x+world[5]*y+world[9]*z+world[13], world[2]*x+world[6]*y+world[10]*z+world[14])
                 }
-                vertexData.flip()
-                parts.add(Part(vertexData.asFloatBuffer(), null, indexList.size, floatArrayOf(0.72f, 0.70f, 0.65f, 1f)))
+                val vertexData = ByteBuffer.allocateDirect(indexList.size * 3 * 4).order(ByteOrder.nativeOrder())
+                val normalData = ByteBuffer.allocateDirect(indexList.size * 3 * 4).order(ByteOrder.nativeOrder())
+                for (i in transformed.indices step 3) {
+                    val a=transformed[i]; val b=transformed[i+1]; val c=transformed[i+2]
+                    val ux=b[0]-a[0]; val uy=b[1]-a[1]; val uz=b[2]-a[2]
+                    val vx=c[0]-a[0]; val vy=c[1]-a[1]; val vz=c[2]-a[2]
+                    var nx=uy*vz-uz*vy; var ny=uz*vx-ux*vz; var nz=ux*vy-uy*vx
+                    val len=kotlin.math.sqrt(nx*nx+ny*ny+nz*nz).coerceAtLeast(0.000001f)
+                    nx/=len; ny/=len; nz/=len
+                    for(j in 0..2) { val p=transformed[i+j]; vertexData.putFloat(p[0]); vertexData.putFloat(p[1]); vertexData.putFloat(p[2]); normalData.putFloat(nx); normalData.putFloat(ny); normalData.putFloat(nz) }
+                }
+                vertexData.flip(); normalData.flip()
+                val mi=primitive.optInt("material",-1)
+                val pbr=if(materials!=null && mi in 0 until materials.length()) materials.getJSONObject(mi).optJSONObject("pbrMetallicRoughness") else null
+                val factor=pbr?.optJSONArray("baseColorFactor")
+                val color=if(factor!=null && factor.length()>=3) FloatArray(4){k->factor.optDouble(k,1.0).toFloat()} else floatArrayOf(0.72f,0.70f,0.65f,1f)
+                parts.add(Part(vertexData.asFloatBuffer(), null, indexList.size, color, normalData.asFloatBuffer()))
             }
         }
 
@@ -475,7 +500,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     companion object {
         private const val CAMERA_VS = "attribute vec4 aPos; attribute vec2 aUv; varying vec2 vUv; void main(){gl_Position=aPos;vUv=aUv;}"
         private const val CAMERA_FS = "#extension GL_OES_EGL_image_external : require\nprecision mediump float; uniform samplerExternalOES sCamera; varying vec2 vUv; void main(){gl_FragColor=texture2D(sCamera,vUv);}"
-        private const val MODEL_VS = "attribute vec4 aPos; uniform mat4 uMvp; void main(){gl_Position=uMvp*aPos;}"
-        private const val MODEL_FS = "precision mediump float; uniform vec4 uColor; void main(){gl_FragColor=uColor;}"
+        private const val MODEL_VS = "attribute vec4 aPos; attribute vec3 aNormal; uniform mat4 uMvp; varying vec3 vNormal; void main(){gl_Position=uMvp*aPos;vNormal=aNormal;}"
+        private const val MODEL_FS = "precision mediump float; uniform vec4 uColor; varying vec3 vNormal; void main(){vec3 n=normalize(vNormal);vec3 l=normalize(vec3(-0.45,0.82,0.36));float d=max(dot(n,l),0.0);float light=0.42+0.58*d;gl_FragColor=vec4(uColor.rgb*light,uColor.a);}"
     }
 }
