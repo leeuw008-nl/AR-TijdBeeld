@@ -96,7 +96,8 @@ class AdminActivity : Activity() {
             return
         }
         buildScreen()
-        if (currentSection != "home") showPhoto(0)
+        if (currentSection == "add") addPhoto(skipSave = true)
+        else if (currentSection != "home") showPhoto(0)
         loadPublicCatalog()
         keepSessionAlive()
     }
@@ -405,14 +406,6 @@ class AdminActivity : Activity() {
                     topMargin = dp(2)
                     bottomMargin = dp(8)
                 })
-            } else {
-                root.addView(actionButton("Nieuwe foto") { addPhoto(); formPanel.visibility = android.view.View.VISIBLE },
-                    LinearLayout.LayoutParams(-1, dp(46)).apply { bottomMargin = dp(6) })
-                root.addView(TextView(this).apply {
-                    text = "Tik op 'Nieuwe foto' om een nieuw invoerrecord te maken. Vul daarna de gegevens hieronder in."
-                    textSize = 12f
-                    setTextColor(0xFF5B6873.toInt())
-                })
             }
 
             preview = ImageView(this).apply {
@@ -512,7 +505,6 @@ class AdminActivity : Activity() {
                 setPadding(2, dp(8), 2, dp(4))
             })
             root.addView(formPanel)
-            if (currentSection == "add") formPanel.visibility = android.view.View.GONE
         }
 
         val screen = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -547,7 +539,9 @@ class AdminActivity : Activity() {
         if (currentSection != "home" && ::titleInput.isInitialized) saveCurrent()
         currentSection = section
         buildScreen()
-        if (section != "home") {
+        if (section == "add") {
+            addPhoto(skipSave = true)
+        } else if (section != "home") {
             showPhoto(selected.coerceIn(0, photos.lastIndex))
         } else {
             pendingFeaturedPhotoId = featuredPhotoId
@@ -642,8 +636,8 @@ class AdminActivity : Activity() {
         updateMapFromFields(fit = true)
     }
 
-    private fun addPhoto() {
-        saveCurrent()
+    private fun addPhoto(skipSave: Boolean = false) {
+        if (!skipSave) saveCurrent()
         // Hergebruik een nog lege invoerfoto in plaats van telkens nieuwe lege records te maken.
         val unfinished = photos.indexOfFirst {
             it.title.equals("Nieuwe historische foto", ignoreCase = true) && it.imageUrl.isBlank()
@@ -1191,7 +1185,7 @@ class AdminActivity : Activity() {
         val mapBackground = prefs.getString("map_background", "pdok")
         val tileLayerJs = when (mapBackground) {
             "osm" -> "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);"
-            "opentopo" -> "L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap (CC-BY-SA)'}).addTo(map);"
+            "opentopo" -> "L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:18,maxNativeZoom:17,attribution:'© OpenTopoMap (CC-BY-SA)'}).addTo(map);"
             else -> "L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png',{minZoom:6,maxZoom:19,attribution:'© Kadaster / PDOK'}).addTo(map);"
         }
         return """
