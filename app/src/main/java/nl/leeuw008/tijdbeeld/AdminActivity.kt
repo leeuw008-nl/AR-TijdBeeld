@@ -70,6 +70,7 @@ class AdminActivity : Activity() {
     private var hasLocalEditsSinceLaunch = false
     private var currentSection: String = "edit"
     private var localTestMode: Boolean = false
+    private var modelPreviewButton: Button? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -438,20 +439,29 @@ class AdminActivity : Activity() {
             if (currentSection == "edit") {
                 val mapCameraActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
                 mapCameraActions.addView(actionButton("Open topo kaart") { openMapPage() },
-                    LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(4) })
-                mapCameraActions.addView(actionButton("Bekijk via camera") { saveCurrent(); openCamera() },
-                    LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(4) })
-                formPanel.addView(mapCameraActions, LinearLayout.LayoutParams(-1, dp(48)).apply {
-                    topMargin = dp(10)
-                    bottomMargin = dp(6)
-                })
-                formPanel.addView(actionButton("Bekijk 3D-model") {
+                    LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(3) })
+                modelPreviewButton = actionButton("Bekijk 3D-model") {
                     saveCurrent()
-                    startActivity(Intent(this@AdminActivity, ModelArActivity::class.java).apply {
-                        putExtra("standalone_preview", true)
-                        putExtra("photoTitle", OMMERSCHANS_PHOTO_TITLE)
+                    if (photos.getOrNull(selected)?.title?.trim() == OMMERSCHANS_PHOTO_TITLE) {
+                        startActivity(Intent(this@AdminActivity, ModelArActivity::class.java).apply {
+                            putExtra("standalone_preview", true)
+                            putExtra("photoTitle", OMMERSCHANS_PHOTO_TITLE)
+                        })
+                    }
+                }.apply {
+                    textSize = 11f
+                    minWidth = 0
+                    setPadding(dp(3), 0, dp(3), 0)
+                    visibility = if (photos.getOrNull(selected)?.title?.trim() == OMMERSCHANS_PHOTO_TITLE) View.VISIBLE else View.GONE
+                }
+                mapCameraActions.addView(modelPreviewButton,
+                    LinearLayout.LayoutParams(dp(112), dp(44)).apply {
+                        marginStart = dp(3); marginEnd = dp(3)
                     })
-                }, LinearLayout.LayoutParams(-1, dp(48)).apply {
+                mapCameraActions.addView(actionButton("Bekijk via camera") { saveCurrent(); openCamera() },
+                    LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(3) })
+                formPanel.addView(mapCameraActions, LinearLayout.LayoutParams(-1, dp(44)).apply {
+                    topMargin = dp(10)
                     bottomMargin = dp(6)
                 })
 
@@ -635,6 +645,7 @@ class AdminActivity : Activity() {
         selected = index.coerceIn(0, photos.lastIndex)
         updatingFields = true
         val p = photos[selected]
+        modelPreviewButton?.visibility = if (p.title.trim() == OMMERSCHANS_PHOTO_TITLE) View.VISIBLE else View.GONE
         titleInput.setText(p.title); urlInput.setText(p.imageUrl)
         objectLatInput.setText(p.objectLat.toString()); objectLngInput.setText(p.objectLng.toString())
         cameraLatInput.setText(p.cameraLat.toString()); cameraLngInput.setText(p.cameraLng.toString())
