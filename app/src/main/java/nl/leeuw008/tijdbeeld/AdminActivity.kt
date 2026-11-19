@@ -1188,6 +1188,12 @@ class AdminActivity : Activity() {
         val centerLat = prefs.getString("mapCenterLat", null)?.toDoubleOrNull() ?: (olat + clat) / 2.0
         val centerLng = prefs.getString("mapCenterLng", null)?.toDoubleOrNull() ?: (olng + clng) / 2.0
         val zoom = prefs.getInt("mapZoom", 17)
+        val mapBackground = prefs.getString("map_background", "pdok")
+        val tileLayerJs = when (mapBackground) {
+            "osm" -> "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);"
+            "opentopo" -> "L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap (CC-BY-SA)'}).addTo(map);"
+            else -> "L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png',{minZoom:6,maxZoom:19,attribution:'© Kadaster / PDOK'}).addTo(map);"
+        }
         return """
         <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -1199,13 +1205,6 @@ class AdminActivity : Activity() {
         </style>
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script></head>
         <body><div id="map"></div><script>
-        val mapBackground = prefs.getString("map_background", "pdok")
-        val tileLayerJs = when (mapBackground) {
-            "osm" -> "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);"
-            "opentopo" -> "L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap (CC-BY-SA)'}).addTo(map);"
-            else -> "L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png',{minZoom:6,maxZoom:19,attribution:'© Kadaster / PDOK'}).addTo(map);"
-        }
-        return """
         var map=L.map('map',{dragging:true,touchZoom:true,scrollWheelZoom:true,doubleClickZoom:true,zoomControl:false}).setView([${centerLat},${centerLng}],${zoom});
         $tileLayerJs
         function labeledIcon(label,color){
