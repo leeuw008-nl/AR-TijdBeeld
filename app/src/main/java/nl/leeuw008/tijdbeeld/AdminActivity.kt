@@ -440,7 +440,7 @@ class AdminActivity : Activity() {
                 val mapCameraActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
                 mapCameraActions.addView(actionButton("Open topo kaart") { openMapPage() },
                     LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(3) })
-                modelPreviewButton = actionButton("Bekijk 3D-model") {
+                val previewButton = actionButton("Bekijk 3D-model") {
                     saveCurrent()
                     if (photos.getOrNull(selected)?.title?.trim() == OMMERSCHANS_PHOTO_TITLE) {
                         startActivity(Intent(this@AdminActivity, ModelArActivity::class.java).apply {
@@ -454,7 +454,8 @@ class AdminActivity : Activity() {
                     setPadding(dp(3), 0, dp(3), 0)
                     visibility = if (photos.getOrNull(selected)?.title?.trim() == OMMERSCHANS_PHOTO_TITLE) View.VISIBLE else View.GONE
                 }
-                mapCameraActions.addView(modelPreviewButton,
+                modelPreviewButton = previewButton
+                mapCameraActions.addView(previewButton,
                     LinearLayout.LayoutParams(dp(112), dp(44)).apply {
                         marginStart = dp(3); marginEnd = dp(3)
                     })
