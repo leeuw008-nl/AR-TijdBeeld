@@ -445,6 +445,22 @@ class AdminActivity : Activity() {
                     topMargin = dp(10)
                     bottomMargin = dp(6)
                 })
+                formPanel.addView(actionButton("Bekijk 3D-model") {
+                    saveCurrent()
+                    if (photos.getOrNull(selected)?.title?.trim() != OMMERSCHANS_PHOTO_TITLE) {
+                        Toast.makeText(
+                            this@AdminActivity,
+                            "Het Ommerschans 3D-model hoort bij de foto '$OMMERSCHANS_PHOTO_TITLE'. Selecteer die foto eerst.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } else {
+                        startActivity(Intent(this@AdminActivity, ModelArActivity::class.java).apply {
+                            putExtra("photoTitle", OMMERSCHANS_PHOTO_TITLE)
+                        })
+                    }
+                }, LinearLayout.LayoutParams(-1, dp(48)).apply {
+                    bottomMargin = dp(6)
+                })
 
                 val saveDeleteActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
                 saveDeleteActions.addView(actionButton("Opslaan") {
