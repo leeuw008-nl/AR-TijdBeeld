@@ -51,7 +51,7 @@ jobs:
           fi
           keytool -list -keystore app/tijdbeeld-release.jks -alias "$ANDROID_KEY_ALIAS" -storepass:env ANDROID_KEYSTORE_PASSWORD > /dev/null
           ACTUAL_SHA1="$(keytool -list -v -keystore app/tijdbeeld-release.jks -alias "$ANDROID_KEY_ALIAS" -storepass:env ANDROID_KEYSTORE_PASSWORD | awk -F': ' '/SHA1:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
-          EXPECTED_SHA1="1CE60A161673FA7B1F5EE3D7C6DE426007806D3A"
+          EXPECTED_SHA1="1CE60A1673FA7B5A1F5EE3D7C6DE426007806D3A"
           echo "Signing certificate SHA-1: $ACTUAL_SHA1"
           if [ "$ACTUAL_SHA1" != "$EXPECTED_SHA1" ]; then
             echo "::error::The fixed signing key does not match the original TijdBeeld SHA-1. No APK will be published."
