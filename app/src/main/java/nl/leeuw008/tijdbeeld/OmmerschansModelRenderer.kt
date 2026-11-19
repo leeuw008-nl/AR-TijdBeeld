@@ -207,9 +207,9 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             offset += 8
             require(length >= 0 && offset + length <= bytes.size) { "Ongeldige GLB-chunk" }
             if (type == 0x4E4F534A) {
-                json = JSONObject(String(bytes,offset,length,Charsets.UTF_8).trimEnd('\u0000',' ','\n','\r'))
+                json = JSONObject(String(bytes, offset, length, Charsets.UTF_8).trimEnd('\u0000',' ','\\n','\\r'))
             } else if (type == 0x004E4942) {
-                bin = ByteBuffer.wrap(bytes,offset,length).slice().order(ByteOrder.LITTLE_ENDIAN)
+                bin = ByteBuffer.wrap(bytes, offset, length).slice().order(ByteOrder.LITTLE_ENDIAN)
             }
             offset += length
         }
@@ -218,57 +218,152 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         val views = root.getJSONArray("bufferViews")
         val accessors = root.getJSONArray("accessors")
         val meshes = root.getJSONArray("meshes")
+        val nodes = root.optJSONArray("nodes")
         val parts = mutableListOf<Part>()
-        for (mi in 0 until meshes.length()) {
-            val primitives = meshes.getJSONObject(mi).getJSONArray("primitives")
+
+        fun nodeMatrix(node: JSONObject): FloatArray {
+            if (node.has("matrix")) {
+                val values = node.getJSONArray("matrix")
+                require(values.length() == 16) { "Ongeldige node-matrix" }
+                return FloatArray(16) { values.getDouble(it).toFloat() }
+            }
+            val t = node.optJSONArray("translation")
+            val r = node.optJSONArray("rotation")
+            val sc = node.optJSONArray("scale")
+            val tx = t?.optDouble(0, 0.0)?.toFloat() ?: 0f
+            val ty = t?.optDouble(1, 0.0)?.toFloat() ?: 0f
+            val tz = t?.optDouble(2, 0.0)?.toFloat() ?: 0f
+            val x = r?.optDouble(0, 0.0) ?: 0.0
+            val y = r?.optDouble(1, 0.0) ?: 0.0
+            val z = r?.optDouble(2, 0.0) ?: 0.0
+            val w = r?.optDouble(3, 1.0) ?: 1.0
+            val sx = sc?.optDouble(0, 1.0)?.toFloat() ?: 1f
+            val sy = sc?.optDouble(1, 1.0)?.toFloat() ?: 1f
+            val sz = sc?.optDouble(2, 1.0)?.toFloat() ?: 1f
+            return floatArrayOf(
+                (1.0 - 2.0*y*y - 2.0*z*z).toFloat()*sx,
+                (2.0*x*y + 2.0*z*w).toFloat()*sx,
+                (2.0*x*z - 2.0*y*w).toFloat()*sx, 0f,
+                (2.0*x*y - 2.0*z*w).toFloat()*sy,
+                (1.0 - 2.0*x*x - 2.0*z*z).toFloat()*sy,
+                (2.0*y*z + 2.0*x*w).toFloat()*sy, 0f,
+                (2.0*x*z + 2.0*y*w).toFloat()*sz,
+                (2.0*y*z - 2.0*x*w).toFloat()*sz,
+                (1.0 - 2.0*x*x - 2.0*y*y).toFloat()*sz, 0f,
+                tx, ty, tz, 1f
+            )
+        }
+
+        fun readComponent(source: ByteBuffer, position: Int, componentType: Int, normalized: Boolean): Float {
+            return when (componentType) {
+                5126 -> source.getFloat(position)
+                5123 -> {
+                    val v = source.getShort(position).toInt() and 0xffff
+                    if (normalized) v / 65535f else v.toFloat()
+                }
+                5122 -> {
+                    val v = source.getShort(position).toShort().toInt()
+                    if (normalized) (v / 32767f).coerceAtLeast(-1f) else v.toFloat()
+                }
+                5121 -> {
+                    val v = source.get(position).toInt() and 0xff
+                    if (normalized) v / 255f else v.toFloat()
+                }
+                5120 -> {
+                    val v = source.get(position).toInt()
+                    if (normalized) (v / 127f).coerceAtLeast(-1f) else v.toFloat()
+                }
+                else -> error("Vertexformaat niet ondersteund: $componentType")
+            }
+        }
+
+        fun addMesh(meshIndex: Int, world: FloatArray) {
+            require(meshIndex in 0 until meshes.length()) { "Ongeldige meshverwijzing" }
+            val primitives = meshes.getJSONObject(meshIndex).getJSONArray("primitives")
             for (pi in 0 until primitives.length()) {
                 val primitive = primitives.getJSONObject(pi)
-                if (primitive.optInt("mode",4) != 4) continue
+                if (primitive.optInt("mode", 4) != 4) continue
                 val attributes = primitive.getJSONObject("attributes")
                 val positionAccessor = accessors.getJSONObject(attributes.getInt("POSITION"))
-                val view = views.getJSONObject(positionAccessor.getInt("bufferView"))
-                val count = positionAccessor.getInt("count")
-                val accessorOffset = positionAccessor.optInt("byteOffset",0)
-                val stride = view.optInt("byteStride",12)
-                val start = view.optInt("byteOffset",0) + accessorOffset
-                val vertexData = ByteBuffer.allocateDirect(count*3*4).order(ByteOrder.nativeOrder())
-                for (i in 0 until count) {
-                    val base = start + i*stride
-                    vertexData.putFloat(binary.getFloat(base))
-                    vertexData.putFloat(binary.getFloat(base+4))
-                    vertexData.putFloat(binary.getFloat(base+8))
+                val positionView = views.getJSONObject(positionAccessor.getInt("bufferView"))
+                val vertexCount = positionAccessor.getInt("count")
+                val componentType = positionAccessor.getInt("componentType")
+                val componentBytes = when (componentType) { 5126, 5125 -> 4; 5123, 5122 -> 2; 5121, 5120 -> 1; else -> error("Vertexformaat niet ondersteund: $componentType") }
+                val stride = positionView.optInt("byteStride", componentBytes * 3)
+                val baseOffset = positionView.optInt("byteOffset", 0) + positionAccessor.optInt("byteOffset", 0)
+                val normalized = positionAccessor.optBoolean("normalized", false)
+                val rawPositions = Array(vertexCount) { index ->
+                    val p = baseOffset + index * stride
+                    floatArrayOf(
+                        readComponent(binary, p, componentType, normalized),
+                        readComponent(binary, p + componentBytes, componentType, normalized),
+                        readComponent(binary, p + componentBytes * 2, componentType, normalized)
+                    )
                 }
-                vertexData.flip()
-                val vertexBuffer = vertexData.asFloatBuffer()
-                val indexBuffer: ShortBuffer?
-                val indexCount: Int
+                val indexList = mutableListOf<Int>()
                 if (primitive.has("indices")) {
                     val accessor = accessors.getJSONObject(primitive.getInt("indices"))
-                    val iv = views.getJSONObject(accessor.getInt("bufferView"))
-                    val comp = accessor.getInt("componentType")
-                    val n = accessor.getInt("count")
-                    val bytesPerIndex = when(comp) { 5121 -> 1; 5123 -> 2; 5125 -> 4; else -> error("Indexformaat niet ondersteund: $comp") }
-                    val startIndex = iv.optInt("byteOffset",0) + accessor.optInt("byteOffset",0)
-                    val converted = ByteBuffer.allocateDirect(n*2).order(ByteOrder.nativeOrder())
-                    for (i in 0 until n) {
-                        val p = startIndex + i*bytesPerIndex
-                        val value = when(comp) {
+                    val indexView = views.getJSONObject(accessor.getInt("bufferView"))
+                    val type = accessor.getInt("componentType")
+                    val bytesPerIndex = when (type) { 5121 -> 1; 5123 -> 2; 5125 -> 4; else -> error("Indexformaat niet ondersteund: $type") }
+                    val first = indexView.optInt("byteOffset", 0) + accessor.optInt("byteOffset", 0)
+                    repeat(accessor.getInt("count")) { i ->
+                        val p = first + i * bytesPerIndex
+                        val value = when (type) {
                             5121 -> binary.get(p).toInt() and 0xff
                             5123 -> binary.getShort(p).toInt() and 0xffff
                             else -> binary.getInt(p).toLong().and(0xffffffffL).toInt()
                         }
-                        require(value <= 65535) { "Mesh heeft meer dan 65.535 unieke vertices" }
-                        converted.putShort(value.toShort())
+                        require(value in rawPositions.indices) { "Mesh-index buiten bereik" }
+                        indexList.add(value)
                     }
-                    converted.flip()
-                    indexBuffer = converted.asShortBuffer()
-                    indexCount = n
                 } else {
-                    indexBuffer = null
-                    indexCount = count
+                    repeat(vertexCount) { indexList.add(it) }
                 }
-                parts.add(Part(vertexBuffer,indexBuffer,indexCount,floatArrayOf(0.66f,0.67f,0.68f,1f)))
+                require(indexList.size % 3 == 0) { "Mesh bevat geen volledige driehoeken" }
+                // Expand indexed triangles. This avoids the 16-bit index limit on OpenGL ES 2.
+                val vertexData = ByteBuffer.allocateDirect(indexList.size * 3 * 4).order(ByteOrder.nativeOrder())
+                for (index in indexList) {
+                    val v = rawPositions[index]
+                    val x = v[0]; val y = v[1]; val z = v[2]
+                    vertexData.putFloat(world[0]*x + world[4]*y + world[8]*z + world[12])
+                    vertexData.putFloat(world[1]*x + world[5]*y + world[9]*z + world[13])
+                    vertexData.putFloat(world[2]*x + world[6]*y + world[10]*z + world[14])
+                }
+                vertexData.flip()
+                parts.add(Part(vertexData.asFloatBuffer(), null, indexList.size, floatArrayOf(0.72f, 0.70f, 0.65f, 1f)))
             }
+        }
+
+        if (nodes != null && nodes.length() > 0) {
+            val sceneIndex = root.optInt("scene", 0)
+            val scenes = root.optJSONArray("scenes")
+            val roots = if (scenes != null && sceneIndex in 0 until scenes.length()) {
+                scenes.getJSONObject(sceneIndex).optJSONArray("nodes")
+            } else null
+            val visited = mutableSetOf<Int>()
+            fun visit(nodeIndex: Int, parent: FloatArray) {
+                require(nodeIndex in 0 until nodes.length()) { "Ongeldige nodeverwijzing" }
+                // A node may be instanced more than once; traverse each occurrence.
+                val node = nodes.getJSONObject(nodeIndex)
+                val local = nodeMatrix(node)
+                val world = FloatArray(16)
+                Matrix.multiplyMM(world, 0, parent, 0, local, 0)
+                if (node.has("mesh")) addMesh(node.getInt("mesh"), world)
+                val children = node.optJSONArray("children")
+                if (children != null) for (i in 0 until children.length()) visit(children.getInt(i), world)
+            }
+            if (roots != null && roots.length() > 0) {
+                val identity = FloatArray(16)
+                Matrix.setIdentityM(identity, 0)
+                for (i in 0 until roots.length()) visit(roots.getInt(i), identity)
+            } else {
+                for (i in 0 until meshes.length()) addMesh(i, FloatArray(16).also { Matrix.setIdentityM(it, 0) })
+            }
+        } else {
+            val identity = FloatArray(16)
+            Matrix.setIdentityM(identity, 0)
+            for (i in 0 until meshes.length()) addMesh(i, identity)
         }
         require(parts.isNotEmpty()) { "GLB bevat geen driehoeksmeshes" }
         return parts
