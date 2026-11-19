@@ -106,12 +106,12 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
 
     fun rotateStandalone(deltaX: Float, deltaY: Float) {
         if (!standaloneMode) return
-        standaloneRotationY = (standaloneRotationY + deltaX * 0.55f) % 360f
-        standaloneRotationX = (standaloneRotationX + deltaY * 0.55f) % 360f
+        standaloneRotationY = (standaloneRotationY + deltaX * 0.14f) % 360f
+        standaloneRotationX = (standaloneRotationX + deltaY * 0.14f) % 360f
     }
 
     fun zoomStandalone(factor: Float) {
-        if (standaloneMode && factor.isFinite() && factor > 0f) standaloneCameraDistance = (standaloneCameraDistance / factor).coerceIn(2.2f, 24f)
+        if (standaloneMode && factor.isFinite() && factor > 0f) standaloneCameraDistance = (standaloneCameraDistance / factor.coerceIn(0.1f, 10f).let { kotlin.math.sqrt(it) }).coerceIn(0.65f, 24f)
     }
 
     fun setGeoTarget(latitude: Double, longitude: Double) {
