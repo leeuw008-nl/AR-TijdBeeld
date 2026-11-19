@@ -113,8 +113,12 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         if (!standaloneMode) return
         // Reduce drag movement progressively as the camera gets closer to the model.
         val zoomDamping = (standaloneCameraDistance / 7.5f).coerceIn(0.08f, 1f)
-        standaloneRotationY = (standaloneRotationY + deltaX * 0.045f * zoomDamping) % 360f
-        standaloneRotationX = (standaloneRotationX + deltaY * 0.045f * zoomDamping) % 360f
+        // The on-screen sensitivity control affects both pinch zoom and drag rotation.
+        // 50% keeps the original drag speed; lower values allow precise movement when zoomed in.
+        val userSensitivity = 0.15f + standaloneZoomSensitivity * 1.70f
+        val dragScale = 0.045f * zoomDamping * userSensitivity
+        standaloneRotationY = (standaloneRotationY + deltaX * dragScale) % 360f
+        standaloneRotationX = (standaloneRotationX + deltaY * dragScale) % 360f
     }
 
     fun zoomStandalone(factor: Float) {
