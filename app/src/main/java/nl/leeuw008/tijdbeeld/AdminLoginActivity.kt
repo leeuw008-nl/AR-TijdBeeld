@@ -220,14 +220,20 @@ class AdminLoginActivity : Activity() {
                 val expiresIn = response?.optLong("expiresIn", 0L) ?: 0L
                 runOnUiThread {
                     if (status in 200..299 && response?.optBoolean("success") == true && token.isNotBlank()) {
-                        prefs.edit()
+                        // Schrijf de beheersessie synchroon naar disk voordat het inlogscherm sluit.
+                        // Zo blijft de token ook na direct afsluiten of herstart beschikbaar.
+                        val sessionSaved = prefs.edit()
                             .putString("admin_email", email)
                             .putString("admin_session_token", token)
-                            .putLong("admin_session_expires_at", System.currentTimeMillis() + (expiresIn.takeIf { it > 0L } ?: 24L * 60L * 60L) * 1000L)
-                            .apply()
-                        passwordInput.text.clear()
-                        startActivity(Intent(this, AdminActivity::class.java).putExtra("admin_authenticated", true))
-                        finish()
+                            .putLong("admin_session_expires_at", 0L) // Worker-sessies verlopen niet automatisch.
+                            .commit()
+                        if (sessionSaved) {
+                            passwordInput.text.clear()
+                            startActivity(Intent(this, AdminActivity::class.java).putExtra("admin_authenticated", true))
+                            finish()
+                        } else {
+                            Toast.makeText(this, "De beheersessie kon niet lokaal worden opgeslagen. Probeer opnieuw.", Toast.LENGTH_LONG).show()
+                        }
                     } else {
                         val error = response?.optString("error")?.takeIf { it.isNotBlank() }
                             ?: "Inloggen is niet gelukt."
