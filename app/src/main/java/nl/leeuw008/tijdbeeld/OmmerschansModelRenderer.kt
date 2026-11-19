@@ -106,8 +106,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
 
     fun rotateStandalone(deltaX: Float, deltaY: Float) {
         if (!standaloneMode) return
-        standaloneRotationY = (standaloneRotationY + deltaX * 0.14f) % 360f
-        standaloneRotationX = (standaloneRotationX + deltaY * 0.14f) % 360f
+        standaloneRotationY = (standaloneRotationY + deltaX * 0.045f) % 360f
+        standaloneRotationX = (standaloneRotationX + deltaY * 0.045f) % 360f
     }
 
     fun zoomStandalone(factor: Float) {
@@ -212,7 +212,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
 
 
     private fun drawStandalone() {
-        GLES20.glClearColor(0.12f, 0.16f, 0.20f, 1f)
+        GLES20.glClearColor(0.48f, 0.56f, 0.62f, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         val parts = modelData
         if (parts == null) {
