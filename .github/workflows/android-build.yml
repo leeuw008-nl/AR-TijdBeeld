@@ -27,22 +27,59 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Restore persistent diagnostic signing key
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: tijdbeeld-diagnostic-signing-key-v1
-
-      - name: Create diagnostic signing key on first build
+      - name: Prepare fixed Android signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          mkdir -p ~/.android
-          if [ ! -s ~/.android/debug.keystore ]; then
-            keytool -genkeypair -v -keystore ~/.android/debug.keystore \
-              -storepass android -alias androiddebugkey -keypass android \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > app/tijdbeeld-release.jks
+            test -s app/tijdbeeld-release.jks
+            echo "Fixed Android signing key prepared."
+          else
+            echo "::error::ANDROID_KEYSTORE_BASE64 is missing. Refusing to build an APK with a temporary debug signing key."
+            exit 1
           fi
-          test -s ~/.android/debug.keystore
+
+      - name: Verify fixed Android signing key
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ]; then
+            echo "::error::The keystore password or key alias secret is missing."
+            exit 1
+          fi
+          keytool -list -keystore app/tijdbeeld-release.jks -alias "$ANDROID_KEY_ALIAS" -storepass:env ANDROID_KEYSTORE_PASSWORD > /dev/null
+          ACTUAL_SHA1="$(keytool -list -v -keystore app/tijdbeeld-release.jks -alias "$ANDROID_KEY_ALIAS" -storepass:env ANDROID_KEYSTORE_PASSWORD | awk -F': ' '/SHA1:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          EXPECTED_SHA1="1CE60A161673FA7B1F5EE3D7C6DE426007806D3A"
+          echo "Signing certificate SHA-1: $ACTUAL_SHA1"
+          if [ "$ACTUAL_SHA1" != "$EXPECTED_SHA1" ]; then
+            echo "::error::The fixed signing key does not match the original TijdBeeld SHA-1. No APK will be published."
+            exit 1
+          fi
+          echo "Original TijdBeeld signing key verified."
+
+      - name: Verify private key password
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "::error::The private key password secret is missing."
+            exit 1
+          fi
+          keytool -importkeystore -noprompt \
+            -srckeystore app/tijdbeeld-release.jks \
+            -srcstoretype JKS \
+            -srcstorepass:env ANDROID_KEYSTORE_PASSWORD \
+            -srcalias "$ANDROID_KEY_ALIAS" \
+            -srckeypass:env ANDROID_KEY_PASSWORD \
+            -destkeystore "$RUNNER_TEMP/tijdbeeld-key-check.p12" \
+            -deststoretype PKCS12 \
+            -deststorepass:env ANDROID_KEYSTORE_PASSWORD \
+            -destkeypass:env ANDROID_KEYSTORE_PASSWORD > /dev/null
+          echo "Private key password verified."
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -70,7 +107,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: gradle --no-daemon :app:assembleDebug
 
-      - name: Prepare AR-TijdBeeld APK
+      - name: Prepare and verify AR-TijdBeeld APK
         run: |
           mkdir -p dist
           APK_PATH="$(find app/build/outputs/apk/debug -type f -name '*.apk' -print -quit)"
@@ -82,13 +119,9 @@ jobs:
           cp "$APK_PATH" dist/AR-TijdBeeld.apk
           test -s dist/AR-TijdBeeld.apk
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
-          if [ -z "$APKSIGNER" ]; then
-            echo "::error::Android apksigner was not found."
-            exit 1
-          fi
           "$APKSIGNER" verify --verbose --print-certs dist/AR-TijdBeeld.apk
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
-          "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='1'|application-label:'AR-TijdBeeld nieuw'"
+          "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld' versionCode='2'"
 
       - name: Upload AR-TijdBeeld APK
         uses: actions/upload-artifact@v4
@@ -97,5 +130,3 @@ jobs:
           path: dist/AR-TijdBeeld.apk
           if-no-files-found: error
           retention-days: 31
-
-
