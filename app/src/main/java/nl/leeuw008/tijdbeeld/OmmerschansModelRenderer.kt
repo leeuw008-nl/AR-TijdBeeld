@@ -120,7 +120,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     fun zoomStandalone(factor: Float) {
         if (standaloneMode && factor.isFinite() && factor > 0f) {
             val exponent = 0.15f + standaloneZoomSensitivity * 0.85f
-            standaloneCameraDistance = (standaloneCameraDistance / factor.coerceIn(0.1f, 10f).let { it.toDouble().pow(exponent.toDouble()).toFloat() }).coerceIn(0.65f, 24f)
+            standaloneCameraDistance = (standaloneCameraDistance / factor.coerceIn(0.1f, 10f).let { Math.pow(it.toDouble(), exponent.toDouble()).toFloat() }).coerceIn(0.65f, 24f)
         }
     }
 
