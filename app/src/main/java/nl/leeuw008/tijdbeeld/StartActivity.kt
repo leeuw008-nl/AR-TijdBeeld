@@ -223,6 +223,10 @@ class StartActivity : Activity() {
                     openAdminSection("home", false)
                     true
                 }
+                beheerMenu.add("Achtergrondkaart").setOnMenuItemClickListener {
+                    chooseMapBackground()
+                    true
+                }
                 beheerMenu.add("Uitloggen").setOnMenuItemClickListener {
                     logoutFromNavigationMenu()
                     true
@@ -235,6 +239,26 @@ class StartActivity : Activity() {
             }
             show()
         }
+    }
+
+    private fun chooseMapBackground() {
+        val choices = arrayOf(
+            "PDOK achtergrondkaart",
+            "OpenStreetMap",
+            "OpenTopoMap (topografisch met wandelpaden)"
+        )
+        val keys = arrayOf("pdok", "osm", "opentopo")
+        val current = prefs.getString("map_background", "pdok")
+        val selectedIndex = keys.indexOf(current).coerceAtLeast(0)
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Achtergrondkaart voor de hele app")
+            .setSingleChoiceItems(choices, selectedIndex) { dialog, which ->
+                prefs.edit().putString("map_background", keys[which]).apply()
+                dialog.dismiss()
+                android.widget.Toast.makeText(this, "Achtergrondkaart opgeslagen", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Annuleren", null)
+            .show()
     }
 
     private fun openAdminSection(section: String, localTestMode: Boolean) {
