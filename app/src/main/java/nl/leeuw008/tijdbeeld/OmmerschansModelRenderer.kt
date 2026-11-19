@@ -207,7 +207,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             offset += 8
             require(length >= 0 && offset + length <= bytes.size) { "Ongeldige GLB-chunk" }
             if (type == 0x4E4F534A) {
-                json = JSONObject(String(bytes, offset, length, Charsets.UTF_8).trimEnd('\u0000',' ','\\n','\\r'))
+                json = JSONObject(String(bytes, offset, length, Charsets.UTF_8).trim())
             } else if (type == 0x004E4942) {
                 bin = ByteBuffer.wrap(bytes, offset, length).slice().order(ByteOrder.LITTLE_ENDIAN)
             }
