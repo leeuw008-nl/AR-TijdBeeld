@@ -3,42 +3,24 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-val fixedKeystoreFile = file("tijdbeeld-release.jks")
-val hasFixedKeystore = fixedKeystoreFile.exists()
-
 android {
     namespace = "nl.leeuw008.tijdbeeld"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "nl.leeuw008.tijdbeeld"
+        applicationId = "nl.leeuw008.tijdbeeld.diagnose32"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 32
         versionCode = 2
         versionName = "0.1.0"
-    }
-
-    signingConfigs {
-        if (hasFixedKeystore) {
-            create("fixedDebug") {
-                storeFile = fixedKeystoreFile
-                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: ""
-                keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "tijdbeeld"
-                keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: ""
-                // Include both legacy JAR (v1) and APK Signature Scheme v2 signatures.
-                // This improves compatibility with Android package installers.
-                enableV1Signing = true
-                enableV2Signing = true
-            }
-        }
     }
 
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
-            if (hasFixedKeystore) {
-                signingConfig = signingConfigs.getByName("fixedDebug")
-            }
+            // Use the standard Android debug key, as in the APK confirmed installable
+            // on the Samsung S10+ (target SDK 32 diagnostic build).
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
