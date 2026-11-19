@@ -132,9 +132,7 @@ class PhotoMapActivity : Activity() {
             })
         }
         val modelFootprint = JSONArray(OMMERSCHANS_FOOTPRINT_JSON)
-        val ommerschansPhotoId = JSONObject.quote(photos.firstOrNull {
-            it.title.trim() == OMMERSCHANS_PHOTO_TITLE
-        }?.id ?: "")
+        val ommerschansPhotoId = JSONObject.quote(OMMERSCHANS_MAP_ID)
         val html = """
             <!doctype html>
             <html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -164,7 +162,8 @@ class PhotoMapActivity : Activity() {
             }).addTo(map);
             const bounds = [];
             modelFootprint.forEach(rings => {
-              const polygonRings = rings.map(ring => ring.map(point => [point[0], point[1]]));
+              // Elk item in modelFootprint is één buitenring met [latitude, longitude]-punten.
+              const polygonRings = [rings.map(point => [point[0], point[1]])];
               const footprint = L.polygon(polygonRings, {
                 color: '#174a7e', weight: 2, opacity: 0.95,
                 fillColor: '#398bd0', fillOpacity: 0.38
@@ -176,7 +175,7 @@ class PhotoMapActivity : Activity() {
               button.textContent = 'Bekijk 3D-model in AR';
               button.style.marginTop = '8px';
               button.onclick = () => {
-                if (ommerschansPhotoId) window.location.href = 'https://tijdbeeld.local/open?id=' + encodeURIComponent(ommerschansPhotoId);
+                window.location.href = 'https://tijdbeeld.local/open?id=' + encodeURIComponent(ommerschansPhotoId);
               };
               popup.appendChild(title);
               popup.appendChild(document.createElement('br'));
@@ -215,6 +214,14 @@ class PhotoMapActivity : Activity() {
     private fun handleMapUrl(uri: Uri): Boolean {
         if (uri.host != "tijdbeeld.local" || uri.path != "/open") return false
         val id = uri.getQueryParameter("id") ?: return true
+        if (id == OMMERSCHANS_MAP_ID) {
+            startActivity(Intent(this, ModelArActivity::class.java).apply {
+                putExtra("photoTitle", OMMERSCHANS_PHOTO_TITLE)
+                putExtra("photoObjectLat", OMMERSCHANS_LAT)
+                putExtra("photoObjectLng", OMMERSCHANS_LNG)
+            })
+            return true
+        }
         val photo = photos.firstOrNull { it.id == id } ?: return true
         if (photo.title.trim() == OMMERSCHANS_PHOTO_TITLE) {
             startActivity(Intent(this, ModelArActivity::class.java).apply {
@@ -245,6 +252,9 @@ class PhotoMapActivity : Activity() {
     }
 
     companion object {
+        private const val OMMERSCHANS_MAP_ID = "ommerschans-hoofdgebouw-1900"
+        private const val OMMERSCHANS_LAT = 52.58737559898257
+        private const val OMMERSCHANS_LNG = 6.391727308884152
         private const val OMMERSCHANS_FOOTPRINT_JSON = """[[[52.58688878,6.39097249],[52.58684427,6.39105918],[52.58691704,6.39252954],[52.58696826,6.39260225],[52.58785908,6.39248589],[52.58790453,6.39239936],[52.58783521,6.39092233],[52.58778219,6.39085154],[52.58688878,6.39097249]],[[52.58710027,6.39227125],[52.58769773,6.3921902],[52.58768949,6.39202628],[52.58709202,6.39210734],[52.58710027,6.39227125]],[[52.58724032,6.39132224],[52.58760182,6.39127566],[52.58759722,6.39117948],[52.58723572,6.39122606],[52.58724032,6.39132224]],[[52.58740627,6.39190634],[52.58740143,6.39180197],[52.58737946,6.39180507],[52.58737695,6.39174885],[52.587367,6.39175021],[52.58736978,6.39180599],[52.58734772,6.3918088],[52.58735292,6.39191342],[52.58740627,6.39190634]],[[52.58772512,6.39211552],[52.58775695,6.39211141],[52.58774802,6.3919251],[52.58771619,6.39192922],[52.58772512,6.39211552]],[[52.58769331,6.39143519],[52.58772496,6.3914312],[52.58771627,6.39124528],[52.58768462,6.39124927],[52.58769331,6.39143519]],[[52.58700197,6.39152846],[52.58703367,6.39152434],[52.58702474,6.39133886],[52.58699304,6.39134297],[52.58700197,6.39152846]],[[52.58703599,6.39220766],[52.58706709,6.39220359],[52.58705808,6.39201761],[52.58702697,6.39202168],[52.58703599,6.39220766]]]"""
         private const val PUBLIC_CATALOG_URL =
             "https://tijdbeeld.leeuw008.workers.dev/photos"
