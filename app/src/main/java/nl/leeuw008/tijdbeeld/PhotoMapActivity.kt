@@ -142,7 +142,7 @@ class PhotoMapActivity : Activity() {
         val mapBackground = getSharedPreferences("tijdbeeld_admin", MODE_PRIVATE).getString("map_background", "pdok")
         val tileLayerJs = when (mapBackground) {
             "osm" -> "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);"
-            "opentopo" -> "L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap (CC-BY-SA)'}).addTo(map);"
+            "opentopo" -> "L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:18,maxNativeZoom:17,attribution:'© OpenTopoMap (CC-BY-SA)'}).addTo(map);"
             else -> "L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png',{minZoom:6,maxZoom:19,attribution:'© Kadaster / PDOK'}).addTo(map);"
         }
         val html = """
