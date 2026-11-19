@@ -1,9 +1,11 @@
 package nl.leeuw008.tijdbeeld
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
+import android.opengl.GLUtils
 import android.opengl.Matrix
 import com.google.ar.core.Anchor
 import com.google.ar.core.Earth
@@ -22,6 +24,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     @Volatile private var session: Session? = null
     @Volatile private var lastStatus = ""
     @Volatile private var modelData: List<Part>? = null
+    @Volatile private var embeddedImages: List<ByteArray> = emptyList()
+    private val glModelTextures = mutableMapOf<Int, Int>()
     @Volatile private var loadStarted = false
     @Volatile private var anchor: Anchor? = null
     @Volatile private var targetLatitude = 52.58737559898257
@@ -42,8 +46,11 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     private var cameraSampler = 0
     private var modelPos = 0
     private var modelNormal = 0
+    private var modelUv = 0
     private var modelMvp = 0
     private var modelColor = 0
+    private var modelSampler = 0
+    private var modelUseTexture = 0
     private val view = FloatArray(16)
     private val projection = FloatArray(16)
     private val model = FloatArray(16)
@@ -58,7 +65,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     private val uv = floats(FloatArray(8))
     private val baseUv = floats(floatArrayOf(0f,1f, 1f,1f, 0f,0f, 1f,0f))
 
-    data class Part(val vertices: FloatBuffer, val indices: ShortBuffer?, val count: Int, val color: FloatArray, val normals: FloatBuffer)
+    data class Part(val vertices: FloatBuffer, val indices: ShortBuffer?, val count: Int, val color: FloatArray, val normals: FloatBuffer, val uvs: FloatBuffer?, val textureIndex: Int?, val transparent: Boolean, val doubleSided: Boolean)
 
     private fun report(message: String) {
         if (message != lastStatus) { lastStatus = message; status(message) }
@@ -79,8 +86,12 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         modelProgram = program(MODEL_VS, MODEL_FS)
         modelPos = GLES20.glGetAttribLocation(modelProgram, "aPos")
         modelNormal = GLES20.glGetAttribLocation(modelProgram, "aNormal")
+        modelUv = GLES20.glGetAttribLocation(modelProgram, "aUv")
         modelMvp = GLES20.glGetUniformLocation(modelProgram, "uMvp")
         modelColor = GLES20.glGetUniformLocation(modelProgram, "uColor")
+        modelSampler = GLES20.glGetUniformLocation(modelProgram, "uTexture")
+        modelUseTexture = GLES20.glGetUniformLocation(modelProgram, "uUseTexture")
+        glModelTextures.clear()
         val ids = IntArray(1)
         GLES20.glGenTextures(1, ids, 0)
         cameraTexture = ids[0]
@@ -191,23 +202,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             GLES20.glEnable(GLES20.GL_CULL_FACE)
             GLES20.glUseProgram(modelProgram)
             GLES20.glUniformMatrix4fv(modelMvp,1,false,mvp,0)
-            for (part in parts) {
-                part.vertices.position(0)
-                GLES20.glEnableVertexAttribArray(modelPos)
-                GLES20.glVertexAttribPointer(modelPos,3,GLES20.GL_FLOAT,false,0,part.vertices)
-                GLES20.glEnableVertexAttribArray(modelNormal)
-                GLES20.glVertexAttribPointer(modelNormal,3,GLES20.GL_FLOAT,false,0,part.normals)
-                GLES20.glUniform4fv(modelColor,1,part.color,0)
-                if (part.indices != null) {
-                    part.indices.position(0)
-                    GLES20.glDrawElements(GLES20.GL_TRIANGLES,part.count,GLES20.GL_UNSIGNED_SHORT,part.indices)
-                } else {
-                    GLES20.glDrawArrays(GLES20.GL_TRIANGLES,0,part.count)
-                }
-                GLES20.glDisableVertexAttribArray(modelPos)
-            GLES20.glDisableVertexAttribArray(modelNormal)
-                GLES20.glDisableVertexAttribArray(modelNormal)
-            }
+            drawModelParts(parts)
             GLES20.glDisable(GLES20.GL_CULL_FACE)
         } catch (e: Exception) {
             report("3D-camera fout: ${e.message ?: e.javaClass.simpleName}")
@@ -226,43 +221,62 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         if (!standaloneTransformReady) {
             var minX = Float.POSITIVE_INFINITY; var minY = Float.POSITIVE_INFINITY; var minZ = Float.POSITIVE_INFINITY
             var maxX = Float.NEGATIVE_INFINITY; var maxY = Float.NEGATIVE_INFINITY; var maxZ = Float.NEGATIVE_INFINITY
-            for (part in parts) {
-                val vertices = part.vertices
-                var i = 0
-                while (i + 2 < vertices.limit()) {
-                    val x = vertices.get(i); val y = vertices.get(i + 1); val z = vertices.get(i + 2)
-                    minX = minOf(minX, x); minY = minOf(minY, y); minZ = minOf(minZ, z)
-                    maxX = maxOf(maxX, x); maxY = maxOf(maxY, y); maxZ = maxOf(maxZ, z)
-                    i += 3
-                }
-            }
-            val extent = maxOf(maxX - minX, maxY - minY, maxZ - minZ).coerceAtLeast(0.001f)
-            val scale = 2.8f / extent
-            Matrix.setIdentityM(standaloneModel, 0)
-            Matrix.scaleM(standaloneModel, 0, scale, scale, scale)
-            Matrix.translateM(standaloneModel, 0, -(minX + maxX) / 2f, -(minY + maxY) / 2f, -(minZ + maxZ) / 2f)
-            standaloneTransformReady = true
-            report("3D-model geladen — vrij bekijken")
-        }
-        val aspect = width.toFloat() / height.coerceAtLeast(1).toFloat()
-        Matrix.perspectiveM(projection, 0, 45f, aspect.coerceAtLeast(0.1f), 0.1f, 100f)
-        Matrix.setLookAtM(view, 0, 0f, standaloneCameraDistance * 0.24f, standaloneCameraDistance, 0f, 0f, 0f, 0f, 1f, 0f)
-        Matrix.setRotateM(standaloneRotation, 0, standaloneRotationX, 1f, 0f, 0f)
-        Matrix.rotateM(standaloneRotation, 0, standaloneRotationY, 0f, 1f, 0f)
-        Matrix.multiplyMM(standaloneRotatedModel, 0, standaloneRotation, 0, standaloneModel, 0)
-        Matrix.multiplyMM(mv, 0, view, 0, standaloneRotatedModel, 0)
-        Matrix.multiplyMM(mvp, 0, projection, 0, mv, 0)
-        GLES20.glEnable(GLES20.GL_DEPTH_TEST)
-        GLES20.glEnable(GLES20.GL_CULL_FACE)
+            drawModelParts(parts)
+        GLES20.glDisable(GLES20.GL_CULL_FACE)
+    }
+
+    private fun uploadModelTexture(imageIndex: Int): Int {
+        glModelTextures[imageIndex]?.let { return it }
+        val data = embeddedImages.getOrNull(imageIndex) ?: return 0
+        val bitmap = BitmapFactory.decodeByteArray(data, 0, data.size, BitmapFactory.Options().apply { inScaled = false }) ?: return 0
+        val ids = IntArray(1)
+        GLES20.glGenTextures(1, ids, 0)
+        val id = ids[0]
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, id)
+        GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 1)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR_MIPMAP_LINEAR)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_REPEAT)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_REPEAT)
+        GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
+        GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+        bitmap.recycle()
+        glModelTextures[imageIndex] = id
+        return id
+    }
+
+    private fun drawModelParts(parts: List<Part>) {
         GLES20.glUseProgram(modelProgram)
-        GLES20.glUniformMatrix4fv(modelMvp, 1, false, mvp, 0)
-        for (part in parts) {
+        GLES20.glUniform1i(modelSampler, 0)
+        for (part in parts.sortedBy { it.transparent }) {
+            if (part.doubleSided) GLES20.glDisable(GLES20.GL_CULL_FACE) else GLES20.glEnable(GLES20.GL_CULL_FACE)
+            if (part.transparent || part.color[3] < 0.999f) {
+                GLES20.glEnable(GLES20.GL_BLEND)
+                GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+                GLES20.glDepthMask(false)
+            } else {
+                GLES20.glDisable(GLES20.GL_BLEND)
+                GLES20.glDepthMask(true)
+            }
             part.vertices.position(0)
             GLES20.glEnableVertexAttribArray(modelPos)
             GLES20.glVertexAttribPointer(modelPos, 3, GLES20.GL_FLOAT, false, 0, part.vertices)
+            part.normals.position(0)
             GLES20.glEnableVertexAttribArray(modelNormal)
             GLES20.glVertexAttribPointer(modelNormal, 3, GLES20.GL_FLOAT, false, 0, part.normals)
             GLES20.glUniform4fv(modelColor, 1, part.color, 0)
+            val textureId = part.textureIndex?.let { uploadModelTexture(it) } ?: 0
+            if (textureId != 0 && part.uvs != null) {
+                part.uvs.position(0)
+                GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
+                GLES20.glEnableVertexAttribArray(modelUv)
+                GLES20.glVertexAttribPointer(modelUv, 2, GLES20.GL_FLOAT, false, 0, part.uvs)
+                GLES20.glUniform1i(modelUseTexture, 1)
+            } else {
+                GLES20.glDisableVertexAttribArray(modelUv)
+                GLES20.glUniform1i(modelUseTexture, 0)
+            }
             if (part.indices != null) {
                 part.indices.position(0)
                 GLES20.glDrawElements(GLES20.GL_TRIANGLES, part.count, GLES20.GL_UNSIGNED_SHORT, part.indices)
@@ -270,8 +284,12 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                 GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, part.count)
             }
             GLES20.glDisableVertexAttribArray(modelPos)
+            GLES20.glDisableVertexAttribArray(modelNormal)
+            GLES20.glDisableVertexAttribArray(modelUv)
         }
-        GLES20.glDisable(GLES20.GL_CULL_FACE)
+        GLES20.glDepthMask(true)
+        GLES20.glDisable(GLES20.GL_BLEND)
+        GLES20.glEnable(GLES20.GL_CULL_FACE)
     }
 
     private fun loadModel() {
@@ -317,6 +335,21 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         val accessors = root.getJSONArray("accessors")
         val meshes = root.getJSONArray("meshes")
         val materials = root.optJSONArray("materials")
+        val textures = root.optJSONArray("textures")
+        val images = root.optJSONArray("images")
+        val decodedImages = mutableListOf<ByteArray>()
+        if (images != null) for (i in 0 until images.length()) {
+            val image = images.getJSONObject(i)
+            val viewIndex = image.optInt("bufferView", -1)
+            if (viewIndex >= 0 && viewIndex < views.length()) {
+                val imageView = views.getJSONObject(viewIndex)
+                val start = imageView.optInt("byteOffset", 0)
+                val length = imageView.getInt("byteLength")
+                require(start >= 0 && length >= 0 && start + length <= binary.limit()) { "Ongeldige afbeeldingsdata in GLB" }
+                decodedImages.add(ByteArray(length) { binary.get(start + it) })
+            } else decodedImages.add(ByteArray(0))
+        }
+        embeddedImages = decodedImages
         val nodes = root.optJSONArray("nodes")
         val parts = mutableListOf<Part>()
 
@@ -399,6 +432,24 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                         readComponent(binary, p + componentBytes * 2, componentType, normalized)
                     )
                 }
+                fun readAttribute(attributeName: String, componentCount: Int): Array<FloatArray>? {
+                    val accessorIndex = attributes.optInt(attributeName, -1)
+                    if (accessorIndex < 0) return null
+                    val accessor = accessors.getJSONObject(accessorIndex)
+                    val bufferView = views.getJSONObject(accessor.getInt("bufferView"))
+                    val type = accessor.getInt("componentType")
+                    val bytesPerComponent = when (type) { 5126, 5125 -> 4; 5123, 5122 -> 2; 5121, 5120 -> 1; else -> error("Attribuutformaat niet ondersteund: $type") }
+                    val attributeStride = bufferView.optInt("byteStride", bytesPerComponent * componentCount)
+                    val first = bufferView.optInt("byteOffset", 0) + accessor.optInt("byteOffset", 0)
+                    val isNormalized = accessor.optBoolean("normalized", false)
+                    require(accessor.getInt("count") == vertexCount) { "Attribuut $attributeName heeft een afwijkend aantal vertices" }
+                    return Array(vertexCount) { index ->
+                        val p = first + index * attributeStride
+                        FloatArray(componentCount) { component -> readComponent(binary, p + component * bytesPerComponent, type, isNormalized) }
+                    }
+                }
+                val rawNormals = readAttribute("NORMAL", 3)
+                val rawUvs = readAttribute("TEXCOORD_0", 2)
                 val indexList = mutableListOf<Int>()
                 if (primitive.has("indices")) {
                     val accessor = accessors.getJSONObject(primitive.getInt("indices"))
@@ -427,21 +478,44 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                 }
                 val vertexData = ByteBuffer.allocateDirect(indexList.size * 3 * 4).order(ByteOrder.nativeOrder())
                 val normalData = ByteBuffer.allocateDirect(indexList.size * 3 * 4).order(ByteOrder.nativeOrder())
+                val uvData = if (rawUvs != null) ByteBuffer.allocateDirect(indexList.size * 2 * 4).order(ByteOrder.nativeOrder()) else null
                 for (i in transformed.indices step 3) {
                     val a=transformed[i]; val b=transformed[i+1]; val c=transformed[i+2]
                     val ux=b[0]-a[0]; val uy=b[1]-a[1]; val uz=b[2]-a[2]
                     val vx=c[0]-a[0]; val vy=c[1]-a[1]; val vz=c[2]-a[2]
-                    var nx=uy*vz-uz*vy; var ny=uz*vx-ux*vz; var nz=ux*vy-uy*vx
-                    val len=kotlin.math.sqrt(nx*nx+ny*ny+nz*nz).coerceAtLeast(0.000001f)
-                    nx/=len; ny/=len; nz/=len
-                    for(j in 0..2) { val p=transformed[i+j]; vertexData.putFloat(p[0]); vertexData.putFloat(p[1]); vertexData.putFloat(p[2]); normalData.putFloat(nx); normalData.putFloat(ny); normalData.putFloat(nz) }
+                    var fx=uy*vz-uz*vy; var fy=uz*vx-ux*vz; var fz=ux*vy-uy*vx
+                    val flen=kotlin.math.sqrt(fx*fx+fy*fy+fz*fz).coerceAtLeast(0.000001f)
+                    fx/=flen; fy/=flen; fz/=flen
+                    for(j in 0..2) {
+                        val vertexIndex=indexList[i+j]; val p=transformed[i+j]
+                        vertexData.putFloat(p[0]); vertexData.putFloat(p[1]); vertexData.putFloat(p[2])
+                        val sourceNormal=rawNormals?.get(vertexIndex)
+                        var nx:Float; var ny:Float; var nz:Float
+                        if (sourceNormal != null) {
+                            nx=world[0]*sourceNormal[0]+world[4]*sourceNormal[1]+world[8]*sourceNormal[2]
+                            ny=world[1]*sourceNormal[0]+world[5]*sourceNormal[1]+world[9]*sourceNormal[2]
+                            nz=world[2]*sourceNormal[0]+world[6]*sourceNormal[1]+world[10]*sourceNormal[2]
+                            val nlen=kotlin.math.sqrt(nx*nx+ny*ny+nz*nz).coerceAtLeast(0.000001f)
+                            nx/=nlen; ny/=nlen; nz/=nlen
+                        } else { nx=fx; ny=fy; nz=fz }
+                        normalData.putFloat(nx); normalData.putFloat(ny); normalData.putFloat(nz)
+                        if (uvData != null) {
+                            val tex=rawUvs!![vertexIndex]
+                            uvData.putFloat(tex[0]); uvData.putFloat(1f-tex[1])
+                        }
+                    }
                 }
-                vertexData.flip(); normalData.flip()
+                vertexData.flip(); normalData.flip(); uvData?.flip()
                 val mi=primitive.optInt("material",-1)
-                val pbr=if(materials!=null && mi in 0 until materials.length()) materials.getJSONObject(mi).optJSONObject("pbrMetallicRoughness") else null
+                val material=if(materials!=null && mi in 0 until materials.length()) materials.getJSONObject(mi) else null
+                val pbr=material?.optJSONObject("pbrMetallicRoughness")
                 val factor=pbr?.optJSONArray("baseColorFactor")
-                val color=if(factor!=null && factor.length()>=3) FloatArray(4){k->factor.optDouble(k,1.0).toFloat()} else floatArrayOf(0.72f,0.70f,0.65f,1f)
-                parts.add(Part(vertexData.asFloatBuffer(), null, indexList.size, color, normalData.asFloatBuffer()))
+                val color=if(factor!=null && factor.length()>=4) FloatArray(4){k->factor.optDouble(k,1.0).toFloat()} else floatArrayOf(1f,1f,1f,1f)
+                val textureRef=pbr?.optJSONObject("baseColorTexture")?.optInt("index",-1) ?: -1
+                val imageIndex=if(textures!=null && textureRef in 0 until textures.length()) textures.getJSONObject(textureRef).optInt("source",-1) else -1
+                val alphaMode=material?.optString("alphaMode","OPAQUE") ?: "OPAQUE"
+                val doubleSided=material?.optBoolean("doubleSided",false) ?: false
+                parts.add(Part(vertexData.asFloatBuffer(), null, indexList.size, color, normalData.asFloatBuffer(), uvData?.asFloatBuffer(), imageIndex.takeIf { it >= 0 }, alphaMode == "BLEND" || color[3] < 0.999f, doubleSided))
             }
         }
 
@@ -500,7 +574,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     companion object {
         private const val CAMERA_VS = "attribute vec4 aPos; attribute vec2 aUv; varying vec2 vUv; void main(){gl_Position=aPos;vUv=aUv;}"
         private const val CAMERA_FS = "#extension GL_OES_EGL_image_external : require\nprecision mediump float; uniform samplerExternalOES sCamera; varying vec2 vUv; void main(){gl_FragColor=texture2D(sCamera,vUv);}"
-        private const val MODEL_VS = "attribute vec4 aPos; attribute vec3 aNormal; uniform mat4 uMvp; varying vec3 vNormal; void main(){gl_Position=uMvp*aPos;vNormal=aNormal;}"
-        private const val MODEL_FS = "precision mediump float; uniform vec4 uColor; varying vec3 vNormal; void main(){vec3 n=normalize(vNormal);vec3 l=normalize(vec3(-0.45,0.82,0.36));float d=max(dot(n,l),0.0);float light=0.42+0.58*d;gl_FragColor=vec4(uColor.rgb*light,uColor.a);}"
+        private const val MODEL_VS = "attribute vec4 aPos; attribute vec3 aNormal; attribute vec2 aUv; uniform mat4 uMvp; varying vec3 vNormal; varying vec2 vUv; void main(){gl_Position=uMvp*aPos;vNormal=aNormal;vUv=aUv;}"
+        private const val MODEL_FS = "precision mediump float; uniform vec4 uColor; uniform sampler2D uTexture; uniform int uUseTexture; varying vec3 vNormal; varying vec2 vUv; void main(){vec4 base=uColor;if(uUseTexture==1)base*=texture2D(uTexture,vUv);vec3 n=normalize(vNormal);vec3 l1=normalize(vec3(-0.45,0.82,0.36));vec3 l2=normalize(vec3(0.45,0.20,-0.70));float d=max(dot(n,l1),0.0);float fill=max(dot(n,l2),0.0);float light=0.48+0.40*d+0.12*fill;gl_FragColor=vec4(base.rgb*light,base.a);}
     }
 }
