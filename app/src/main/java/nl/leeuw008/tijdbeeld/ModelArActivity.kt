@@ -38,12 +38,11 @@ class ModelArActivity : Activity() {
         super.onCreate(savedInstanceState)
         status = TextView(this).apply {
             text = photoTitle + "\nCamera en geografische plaatsing starten…"
-            textSize = 17f
+            textSize = 16f
             setTextColor(0xFFFFFFFF.toInt())
             setShadowLayer(5f, 1f, 1f, 0xFF000000.toInt())
-            setPadding(22, 20, 22, 20)
-            setBackgroundColor(0xCC102A43.toInt())
-            gravity = Gravity.CENTER
+            setPadding(dp(8), dp(10), dp(12), dp(10))
+            gravity = Gravity.CENTER_VERTICAL
             maxLines = 3
             setTextIsSelectable(true)
         }
@@ -115,24 +114,22 @@ class ModelArActivity : Activity() {
         }
         val root = FrameLayout(this)
         root.addView(glView, FrameLayout.LayoutParams(-1, -1))
-        val statusParams = FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
-            topMargin = dp(58)
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setBackgroundColor(0xCC102A43.toInt())
         }
-        root.addView(status, statusParams)
-
         val backButton = TextView(this).apply {
-            text = "‹"
-            textSize = 38f
+            text = "←"
+            textSize = 27f
             setTextColor(0xFFFFFFFF.toInt())
             gravity = Gravity.CENTER
             contentDescription = "Terug"
-            setBackgroundResource(android.R.drawable.btn_default)
             setOnClickListener { finish() }
         }
-        root.addView(backButton, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.TOP or Gravity.START).apply {
-            leftMargin = dp(10)
-            topMargin = dp(8)
-        })
+        header.addView(backButton, LinearLayout.LayoutParams(dp(56), dp(56)))
+        header.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
+        root.addView(header, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
 
         if (standalonePreview) {
             val sensitivityLabel = TextView(this).apply {
