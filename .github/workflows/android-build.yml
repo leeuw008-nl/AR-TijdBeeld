@@ -23,16 +23,41 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      - name: Restore persistent diagnostic signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: tijdbeeld-diagnostic-signing-key-v1
+
+      - name: Create diagnostic signing key on first build
+        run: |
+          mkdir -p ~/.android
+          if [ ! -s ~/.android/debug.keystore ]; then
+            keytool -genkeypair -v -keystore ~/.android/debug.keystore \
+              -storepass android -alias androiddebugkey -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          test -s ~/.android/debug.keystore
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.11.1
 
-      - name: Install georeferenced Ommerschans 1895 GLB asset
+      - name: Install and project georeferenced Ommerschans 1895 GLB
         run: |
+          mkdir -p app/src/main/assets
           cp diversen/hoofdgebouw_ommerschans_1895.glb app/src/main/assets/ommerschans.glb
+          python3 -m pip install --user pillow
+          python3 scripts/render_glb_topdown.py \
+            diversen/hoofdgebouw_ommerschans_1895.glb \
+            app/src/main/assets/ommerschans-topdown.png \
+            app/src/main/assets/ommerschans-topdown.json
           test -s app/src/main/assets/ommerschans.glb
-          echo "Georeferenced GLB copied from diversen/hoofdgebouw_ommerschans_1895.glb"
+          test -s app/src/main/assets/ommerschans-topdown.png
+          test -s app/src/main/assets/ommerschans-topdown.json
+          cat app/src/main/assets/ommerschans-topdown.json
 
       - name: Build AR-TijdBeeld APK
         env:
