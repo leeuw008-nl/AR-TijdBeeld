@@ -25,8 +25,10 @@ class ModelArActivity : Activity() {
     private var session: Session? = null
     private var installRequested = false
     private var permissionRequested = false
+    private val standalonePreview: Boolean by lazy { intent.getBooleanExtra("standalone_preview", false) }
     private val photoTitle: String by lazy {
-        intent.getStringExtra("photoTitle")?.takeIf { it.isNotBlank() } ?: OMMERSCHANS_PHOTO_TITLE
+        if (standalonePreview) "3D-model bekijken" else
+            intent.getStringExtra("photoTitle")?.takeIf { it.isNotBlank() } ?: OMMERSCHANS_PHOTO_TITLE
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,8 +44,13 @@ class ModelArActivity : Activity() {
             maxLines = 3
             setTextIsSelectable(true)
         }
-        renderer = OmmerschansModelRenderer(this) { message ->
+        renderer = OmmerschansModelRenderer(this, { message ->
             runOnUiThread { status.text = photoTitle + "\n" + message }
+        }, standaloneMode = standalonePreview).apply {
+            if (!standalonePreview) setGeoTarget(
+                intent.getDoubleExtra("objectLat", 52.58737559898257),
+                intent.getDoubleExtra("objectLng", 6.391727308884152)
+            )
         }
         glView = GLSurfaceView(this).apply {
             setEGLContextClientVersion(2)
@@ -58,6 +65,7 @@ class ModelArActivity : Activity() {
     }
 
     private fun requestPermissionsIfNeeded() {
+        if (standalonePreview) return
         val missing = arrayOf(Manifest.permission.CAMERA, Manifest.permission.ACCESS_FINE_LOCATION)
             .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isNotEmpty() && !permissionRequested) {
@@ -69,6 +77,10 @@ class ModelArActivity : Activity() {
     override fun onResume() {
         super.onResume()
         renderer.setDisplayRotation(windowManager.defaultDisplay.rotation)
+        if (standalonePreview) {
+            glView.onResume()
+            return
+        }
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED ||
             checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return
         try {
