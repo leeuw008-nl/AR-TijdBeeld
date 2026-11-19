@@ -132,6 +132,7 @@ class PhotoMapActivity : Activity() {
             })
         }
         val modelFootprint = JSONArray(OMMERSCHANS_FOOTPRINT_JSON)
+        val modelInnerWall = JSONArray(OMMERSCHANS_INNER_WALL_JSON)
         val ommerschansPhotoId = JSONObject.quote(OMMERSCHANS_MAP_ID)
         val html = """
             <!doctype html>
@@ -142,6 +143,7 @@ class PhotoMapActivity : Activity() {
             <body><div id="map"></div><script>
             const photos = $markers;
             const modelFootprint = $modelFootprint;
+            const modelInnerWall = $modelInnerWall;
             const ommerschansPhotoId = $ommerschansPhotoId;
             const map = L.map('map',{zoomControl:false});
             L.control.zoom({position:'topright'}).addTo(map);
@@ -183,6 +185,14 @@ class PhotoMapActivity : Activity() {
               footprint.bindPopup(popup);
               footprint.getLatLngs()[0].forEach(point => bounds.push([point.lat, point.lng]));
             });
+            // De binnenmuur is een contourlijn, geen gevuld vlak; zo blijven de gebouwen op
+            // het binnenplein afzonderlijk zichtbaar.
+            const innerWallPoints = modelInnerWall.map(point => [point[0], point[1]]);
+            const innerWall = L.polyline(innerWallPoints, {
+              color: '#d14b32', weight: 3, opacity: 1, lineCap: 'round', lineJoin: 'round'
+            }).addTo(map);
+            innerWall.bindPopup('Binnenmuur hoofdgebouw Ommerschans');
+            innerWallPoints.forEach(point => bounds.push(point));
             photos.forEach(p => {
               const makePhotoPopup = role => {
                 const box = document.createElement('div');
@@ -256,6 +266,9 @@ class PhotoMapActivity : Activity() {
         private const val OMMERSCHANS_LAT = 52.58737559898257
         private const val OMMERSCHANS_LNG = 6.391727308884152
         private const val OMMERSCHANS_FOOTPRINT_JSON = """[[[52.58688878,6.39097249],[52.58684427,6.39105918],[52.58691704,6.39252954],[52.58696826,6.39260225],[52.58785908,6.39248589],[52.58790453,6.39239936],[52.58783521,6.39092233],[52.58778219,6.39085154],[52.58688878,6.39097249]],[[52.58710027,6.39227125],[52.58769773,6.3921902],[52.58768949,6.39202628],[52.58709202,6.39210734],[52.58710027,6.39227125]],[[52.58724032,6.39132224],[52.58760182,6.39127566],[52.58759722,6.39117948],[52.58723572,6.39122606],[52.58724032,6.39132224]],[[52.58740627,6.39190634],[52.58740143,6.39180197],[52.58737946,6.39180507],[52.58737695,6.39174885],[52.587367,6.39175021],[52.58736978,6.39180599],[52.58734772,6.3918088],[52.58735292,6.39191342],[52.58740627,6.39190634]],[[52.58772512,6.39211552],[52.58775695,6.39211141],[52.58774802,6.3919251],[52.58771619,6.39192922],[52.58772512,6.39211552]],[[52.58769331,6.39143519],[52.58772496,6.3914312],[52.58771627,6.39124528],[52.58768462,6.39124927],[52.58769331,6.39143519]],[[52.58700197,6.39152846],[52.58703367,6.39152434],[52.58702474,6.39133886],[52.58699304,6.39134297],[52.58700197,6.39152846]],[[52.58703599,6.39220766],[52.58706709,6.39220359],[52.58705808,6.39201761],[52.58702697,6.39202168],[52.58703599,6.39220766]]]"""
+        // Binnenmuur afgeleid uit de binnenoctagon van hetzelfde 3D-model (v8),
+        // getransformeerd met de buitencontour als geografische referentie.
+        private const val OMMERSCHANS_INNER_WALL_JSON = """[[52.58701460,6.39243745],[52.58779837,6.39233236],[52.58780404,6.39232137],[52.58774188,6.39102753],[52.58773524,6.39101820],[52.58695147,6.39112329],[52.58694580,6.39113428],[52.58700796,6.39242811],[52.58701460,6.39243745]]"""
         private const val PUBLIC_CATALOG_URL =
             "https://tijdbeeld.leeuw008.workers.dev/photos"
     }
