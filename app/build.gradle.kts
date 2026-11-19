@@ -3,32 +3,40 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val fixedKeystoreFile = file("tijdbeeld-release.jks")
+val hasFixedKeystore = fixedKeystoreFile.exists()
+
 android {
     namespace = "nl.leeuw008.tijdbeeld"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "nl.leeuw008.tijdbeeld.diagnose32stable"
+        applicationId = "nl.leeuw008.tijdbeeld"
         minSdk = 24
-        targetSdk = 32
-        versionCode = 1
-        versionName = "0.1.2"
+        targetSdk = 35
+        versionCode = 2
+        versionName = "0.1.0"
     }
 
     signingConfigs {
-        create("persistentDiagnostic") {
-            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+        if (hasFixedKeystore) {
+            create("fixedDebug") {
+                storeFile = fixedKeystoreFile
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "tijdbeeld"
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: ""
+                enableV1Signing = true
+                enableV2Signing = true
+            }
         }
     }
 
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
-            // Reuse one cached debug keystore so later APKs remain valid updates.
-            signingConfig = signingConfigs.getByName("persistentDiagnostic")
+            if (hasFixedKeystore) {
+                signingConfig = signingConfigs.getByName("fixedDebug")
+            }
         }
     }
 
