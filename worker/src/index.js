@@ -316,9 +316,9 @@ async function handle(request, env) {
   if (url.pathname === "/auth/keep-session" && request.method === "POST") {
     const current = await getSession(request, env);
     if (!current) return json({ error: "Je sessie is verlopen. Log opnieuw in." }, 401);
-    // Extend the currently valid token indefinitely for the test phase.
+    // No KV expiration is set: the session remains valid until explicit logout or password reset.
     await env.SESSIONS.put(current.key, JSON.stringify(current.session));
-    return json({ success: true, persistent: true });
+    return json({ success: true, persistent: true, expiresIn: 0 });
   }
 
   if (url.pathname === "/auth/logout" && request.method === "POST") {
