@@ -78,11 +78,13 @@ class StartActivity : Activity() {
                 val stream = if (status in 200..299) connection.inputStream else connection.errorStream
                 val responseBody = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
                 if (status in 200..299) {
-                    val expiresIn = JSONObject(responseBody).optLong("expiresIn", 24L * 60L * 60L)
-                    if (expiresIn > 0L && prefs.getString("admin_session_token", "").orEmpty() == token) {
+                    val response = JSONObject(responseBody)
+                    val persistent = response.optBoolean("persistent", false)
+                    val expiresIn = response.optLong("expiresIn", 0L)
+                    if (prefs.getString("admin_session_token", "").orEmpty() == token) {
                         prefs.edit().putLong(
                             "admin_session_expires_at",
-                            System.currentTimeMillis() + expiresIn * 1000L
+                            if (persistent || expiresIn <= 0L) 0L else System.currentTimeMillis() + expiresIn * 1000L
                         ).apply()
                     }
                 }
