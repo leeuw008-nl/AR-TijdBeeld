@@ -92,7 +92,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     fun rotateStandalone(deltaX: Float, deltaY: Float) {
         if (!standaloneMode) return
         standaloneRotationY = (standaloneRotationY + deltaX * 0.55f) % 360f
-        standaloneRotationX = (standaloneRotationX + deltaY * 0.55f).coerceIn(-85f, 85f)
+        standaloneRotationX = (standaloneRotationX + deltaY * 0.55f) % 360f
     }
 
     fun setGeoTarget(latitude: Double, longitude: Double) {
@@ -228,8 +228,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             val extent = maxOf(maxX - minX, maxY - minY, maxZ - minZ).coerceAtLeast(0.001f)
             val scale = 2.8f / extent
             Matrix.setIdentityM(standaloneModel, 0)
-            Matrix.translateM(standaloneModel, 0, -(minX + maxX) / 2f, -(minY + maxY) / 2f, -(minZ + maxZ) / 2f)
             Matrix.scaleM(standaloneModel, 0, scale, scale, scale)
+            Matrix.translateM(standaloneModel, 0, -(minX + maxX) / 2f, -(minY + maxY) / 2f, -(minZ + maxZ) / 2f)
             standaloneTransformReady = true
             report("3D-model geladen — vrij bekijken")
         }
