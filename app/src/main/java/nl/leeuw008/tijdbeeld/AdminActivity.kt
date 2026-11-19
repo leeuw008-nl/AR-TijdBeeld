@@ -339,6 +339,10 @@ class AdminActivity : Activity() {
                         switchSection("home")
                         true
                     }
+                    beheerMenu.add("Achtergrondkaart").setOnMenuItemClickListener {
+                        chooseMapBackground()
+                        true
+                    }
                     beheerMenu.add("Uitloggen").setOnMenuItemClickListener {
                         logout()
                         true
@@ -1058,6 +1062,26 @@ class AdminActivity : Activity() {
         }.start()
     }
 
+    private fun chooseMapBackground() {
+        val choices = arrayOf(
+            "PDOK achtergrondkaart",
+            "OpenStreetMap",
+            "OpenTopoMap (topografisch met wandelpaden)"
+        )
+        val keys = arrayOf("pdok", "osm", "opentopo")
+        val current = prefs.getString("map_background", "pdok")
+        val selectedIndex = keys.indexOf(current).coerceAtLeast(0)
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Achtergrondkaart voor de hele app")
+            .setSingleChoiceItems(choices, selectedIndex) { dialog, which ->
+                prefs.edit().putString("map_background", keys[which]).apply()
+                dialog.dismiss()
+                Toast.makeText(this, "Achtergrondkaart opgeslagen", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Annuleren", null)
+            .show()
+    }
+
     private fun openMapPage() {
         if (mapScreenActive) return
         if (adminScreenView == null) return
@@ -1175,8 +1199,15 @@ class AdminActivity : Activity() {
         </style>
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script></head>
         <body><div id="map"></div><script>
+        val mapBackground = prefs.getString("map_background", "pdok")
+        val tileLayerJs = when (mapBackground) {
+            "osm" -> "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);"
+            "opentopo" -> "L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap (CC-BY-SA)'}).addTo(map);"
+            else -> "L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png',{minZoom:6,maxZoom:19,attribution:'© Kadaster / PDOK'}).addTo(map);"
+        }
+        return """
         var map=L.map('map',{dragging:true,touchZoom:true,scrollWheelZoom:true,doubleClickZoom:true,zoomControl:false}).setView([${centerLat},${centerLng}],${zoom});
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,attribution:'© OpenStreetMap'}).addTo(map);
+        $tileLayerJs
         function labeledIcon(label,color){
           var svg='<svg class="map-pin" viewBox="0 0 32 42" xmlns="http://www.w3.org/2000/svg"><path d="M16 1C7.7 1 1 7.7 1 16c0 11 15 25 15 25s15-14 15-25C31 7.7 24.3 1 16 1z" fill="'+color+'" stroke="white" stroke-width="1.5"/><circle cx="16" cy="16" r="5.2" fill="white"/></svg>';
           return L.divIcon({className:'',iconSize:[112,40],iconAnchor:[15,36],
