@@ -133,7 +133,7 @@ class ModelArActivity : Activity() {
 
         if (standalonePreview) {
             val sensitivityLabel = TextView(this).apply {
-                text = "Zoomgevoeligheid: 50%"
+                text = "Zoom-/sleepgevoeligheid: 50%"
                 textSize = 14f
                 setTextColor(0xFFFFFFFF.toInt())
                 gravity = Gravity.CENTER_HORIZONTAL
@@ -144,7 +144,7 @@ class ModelArActivity : Activity() {
                 setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                         renderer.setZoomSensitivity(progress / 100f)
-                        sensitivityLabel.text = "Zoomgevoeligheid: $progress%"
+                        sensitivityLabel.text = "Zoom-/sleepgevoeligheid: $progress%"
                     }
                     override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
                     override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
