@@ -28,55 +28,6 @@ jobs:
         with:
           gradle-version: 8.11.1
 
-      - name: Prepare fixed Android signing key
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        run: |
-          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
-            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > app/tijdbeeld-release.jks
-            test -s app/tijdbeeld-release.jks
-            echo "Fixed Android signing key prepared."
-          else
-            echo "::error::ANDROID_KEYSTORE_BASE64 is missing. Refusing to build an APK with a temporary debug signing key."
-            exit 1
-          fi
-
-      - name: Verify fixed Android signing key
-        if: hashFiles('app/tijdbeeld-release.jks') != ''
-        env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-        run: |
-          if [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ]; then
-            echo "::error::The keystore password or key alias secret is missing."
-            exit 1
-          fi
-          keytool -list -keystore app/tijdbeeld-release.jks -alias "$ANDROID_KEY_ALIAS" -storepass:env ANDROID_KEYSTORE_PASSWORD > /dev/null
-          echo "Keystore file, alias, and keystore password verified."
-
-      - name: Verify private key password
-        if: hashFiles('app/tijdbeeld-release.jks') != ''
-        env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-        run: |
-          if [ -z "$ANDROID_KEY_PASSWORD" ]; then
-            echo "::error::The private key password secret is missing."
-            exit 1
-          fi
-          keytool -importkeystore -noprompt \
-            -srckeystore app/tijdbeeld-release.jks \
-            -srcstoretype JKS \
-            -srcstorepass:env ANDROID_KEYSTORE_PASSWORD \
-            -srcalias "$ANDROID_KEY_ALIAS" \
-            -srckeypass:env ANDROID_KEY_PASSWORD \
-            -destkeystore "$RUNNER_TEMP/tijdbeeld-key-check.p12" \
-            -deststoretype PKCS12 \
-            -deststorepass:env ANDROID_KEYSTORE_PASSWORD \
-            -destkeypass:env ANDROID_KEYSTORE_PASSWORD > /dev/null
-          echo "Private key password verified."
-
       - name: Install georeferenced Ommerschans 1895 GLB asset
         run: |
           cp diversen/hoofdgebouw_ommerschans_1895.glb app/src/main/assets/ommerschans.glb
@@ -110,9 +61,4 @@ jobs:
           if-no-files-found: error
           retention-days: 31
 
-      - name: Show debug signing fingerprint
-        env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: gradle --no-daemon :app:signingReport
+
