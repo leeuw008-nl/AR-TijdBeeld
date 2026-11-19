@@ -131,8 +131,13 @@ class PhotoMapActivity : Activity() {
                 put("cameraLng", photo.cameraLng)
             })
         }
-        val modelFootprint = JSONArray(OMMERSCHANS_FOOTPRINT_JSON)
-        val modelInnerWall = JSONArray(OMMERSCHANS_INNER_WALL_JSON)
+        // Rendered from the supplied GLB using its documented WGS84 anchor and metre axes.
+        val overlayBytes = assets.open("ommerschans-topdown.png").use { it.readBytes() }
+        val overlayData = "data:image/png;base64," +
+            android.util.Base64.encodeToString(overlayBytes, android.util.Base64.NO_WRAP)
+        val overlayMeta = JSONObject(
+            assets.open("ommerschans-topdown.json").bufferedReader(Charsets.UTF_8).use { it.readText() }
+        )
         val ommerschansPhotoId = JSONObject.quote(OMMERSCHANS_MAP_ID)
         val html = """
             <!doctype html>
@@ -142,8 +147,9 @@ class PhotoMapActivity : Activity() {
             <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script></head>
             <body><div id="map"></div><script>
             const photos = $markers;
-            const modelFootprint = $modelFootprint;
-            const modelInnerWall = $modelInnerWall;
+            const modelOverlayUrl = ${JSONObject.quote(overlayData)};
+            const modelBounds = [[${overlayMeta.getDouble("south")},${overlayMeta.getDouble("west")}],
+                                 [${overlayMeta.getDouble("north")},${overlayMeta.getDouble("east")}]];
             const ommerschansPhotoId = $ommerschansPhotoId;
             const map = L.map('map',{zoomControl:false});
             L.control.zoom({position:'topright'}).addTo(map);
@@ -162,41 +168,24 @@ class PhotoMapActivity : Activity() {
               minZoom: 6, maxZoom: 19,
               attribution: 'Kaartgegevens © <a href="https://www.kadaster.nl">Kadaster / PDOK</a>'
             }).addTo(map);
-            const modelBounds = [];
             const photoBounds = [];
-            modelFootprint.forEach(rings => {
-              // Elk item in modelFootprint is één buitenring met [latitude, longitude]-punten.
-              const polygonRings = [rings.map(point => [point[0], point[1]])];
-              const footprint = L.polygon(polygonRings, {
-                color: '#174a7e', weight: 2, opacity: 0.95,
-                fillColor: '#398bd0', fillOpacity: 0.38
-              }).addTo(map);
-              const popup = document.createElement('div');
-              const title = document.createElement('strong');
-              title.textContent = '1900 - Ommerschans Hoofdgebouw';
-              const button = document.createElement('button');
-              button.textContent = 'Bekijk 3D-model in AR';
-              button.style.marginTop = '8px';
-              button.onclick = () => {
-                window.location.href = 'https://tijdbeeld.local/open?id=' + encodeURIComponent(ommerschansPhotoId);
-              };
-              popup.appendChild(title);
-              popup.appendChild(document.createElement('br'));
-              popup.appendChild(button);
-              footprint.bindPopup(popup);
-              footprint.getLatLngs()[0].forEach(point => modelBounds.push([point.lat, point.lng]));
-            });
-            // De binnenmuur is een contourlijn, geen gevuld vlak; zo blijven de gebouwen op
-            // het binnenplein afzonderlijk zichtbaar.
-            const innerWallPoints = modelInnerWall.map(point => [point[0], point[1]]);
-            L.polyline(innerWallPoints, {
-              color: '#ffffff', weight: 7, opacity: 0.95, lineCap: 'round', lineJoin: 'round'
+            // Georeferenced orthographic projection of the actual GLB mesh.
+            const modelOverlay = L.imageOverlay(modelOverlayUrl, modelBounds, {
+              opacity: 0.94, interactive: true, crossOrigin: false
             }).addTo(map);
-            const innerWall = L.polyline(innerWallPoints, {
-              color: '#d12f20', weight: 4, opacity: 1, lineCap: 'round', lineJoin: 'round'
-            }).addTo(map);
-            innerWall.bindPopup('Binnenmuur hoofdgebouw Ommerschans');
-            innerWallPoints.forEach(point => modelBounds.push(point));
+            const modelPopup = document.createElement('div');
+            const modelTitle = document.createElement('strong');
+            modelTitle.textContent = '1895 - Ommerschans hoofdgebouw (projectie 3D-model)';
+            const modelButton = document.createElement('button');
+            modelButton.textContent = 'Bekijk 3D-model in AR';
+            modelButton.style.marginTop = '8px';
+            modelButton.onclick = () => {
+              window.location.href = 'https://tijdbeeld.local/open?id=' + encodeURIComponent(ommerschansPhotoId);
+            };
+            modelPopup.appendChild(modelTitle);
+            modelPopup.appendChild(document.createElement('br'));
+            modelPopup.appendChild(modelButton);
+            modelOverlay.bindPopup(modelPopup);
             photos.forEach(p => {
               const makePhotoPopup = role => {
                 const box = document.createElement('div');
@@ -216,10 +205,8 @@ class PhotoMapActivity : Activity() {
               photoBounds.push([p.cameraLat,p.cameraLng]);
               photoBounds.push([p.lat,p.lng]);
             });
-            const initialBounds = modelBounds.length > 0 ? modelBounds : photoBounds;
-            if (initialBounds.length === 1) map.setView(initialBounds[0],17);
-            else if (initialBounds.length > 1) map.fitBounds(initialBounds,{padding:[35,35],maxZoom:17});
-            else map.setView([52.5873756,6.3917273],17);
+            const initialBounds = modelBounds;
+            map.fitBounds(initialBounds,{padding:[35,35],maxZoom:18});
             </script></body></html>
         """.trimIndent()
         webView.loadDataWithBaseURL("https://tijdbeeld.local/", html, "text/html", "UTF-8", null)
