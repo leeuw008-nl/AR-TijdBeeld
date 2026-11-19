@@ -17,6 +17,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -124,6 +125,18 @@ jobs:
           "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld' versionCode='2'"
           ZIPALIGN="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign | sort -V | tail -n 1)"
           "$ZIPALIGN" -c -v 4 dist/AR-TijdBeeld.apk
+          APKANALYZER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name apkanalyzer -print -quit)"
+          if [ -z "$APKANALYZER" ]; then
+            echo "::error::apkanalyzer was not found; cannot verify Geospatial auth classes in the APK."
+            exit 1
+          fi
+          "$APKANALYZER" dex packages dist/AR-TijdBeeld.apk > "$RUNNER_TEMP/apk-dex-packages.txt"
+          if ! grep -q 'com.google.android.gms.auth' "$RUNNER_TEMP/apk-dex-packages.txt"; then
+            echo "::error::The built APK does not contain com.google.android.gms.auth. Geospatial keyless authorization cannot work."
+            cat "$RUNNER_TEMP/apk-dex-packages.txt"
+            exit 1
+          fi
+          echo "Verified: com.google.android.gms.auth is present in the built APK."
 
       # Do not publish an APK unless Android's package installer accepts it
       # and the launcher activity starts on an Android 12 emulator.
