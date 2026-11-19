@@ -18,13 +18,17 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
 /** Minimal GLB 2.0 triangle renderer. Geometry is kept in model metres. */
-class OmmerschansModelRenderer(private val context: Context, private val status: (String) -> Unit) : GLSurfaceView.Renderer {
+class OmmerschansModelRenderer(private val context: Context, private val status: (String) -> Unit, private val standaloneMode: Boolean = false) : GLSurfaceView.Renderer {
     @Volatile private var session: Session? = null
     @Volatile private var lastStatus = ""
     @Volatile private var modelData: List<Part>? = null
     @Volatile private var loadStarted = false
     @Volatile private var anchor: Anchor? = null
+    @Volatile private var targetLatitude = 52.58737559898257
+    @Volatile private var targetLongitude = 6.391727308884152
     private var anchorRequested = false
+    private var standaloneTransformReady = false
+    private val standaloneModel = FloatArray(16)
     private var cameraTexture = 0
     private var cameraProgram = 0
     private var modelProgram = 0
@@ -81,6 +85,15 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
 
     fun setDisplayRotation(rotation: Int) { displayRotation = rotation; geometryChanged = true }
 
+    fun setGeoTarget(latitude: Double, longitude: Double) {
+        if (latitude.isFinite() && longitude.isFinite() && latitude in -90.0..90.0 && longitude in -180.0..180.0) {
+            targetLatitude = latitude
+            targetLongitude = longitude
+            anchor = null
+            anchorRequested = false
+        }
+    }
+
     override fun onSurfaceChanged(gl: GL10?, w: Int, h: Int) {
         width = w; height = h
         GLES20.glViewport(0,0,w,h)
@@ -89,6 +102,10 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
 
     override fun onDrawFrame(gl: GL10?) {
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+        if (standaloneMode) {
+            drawStandalone()
+            return
+        }
         val s = session ?: return
         try {
             if (textureSession !== s) {
@@ -128,12 +145,12 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             if (!anchorRequested && anchor == null) {
                 anchorRequested = true
                 report("Locatie gevonden. Het 3D-model wordt op de bouwlocatie geplaatst…")
-                // GLB origin: courtyard centre at WGS84 52.58737559898257, 6.391727308884152.
+                // GLB origin: courtyard centre at the coordinates supplied by the selected photo.
                 // Axes in the delivered model are +X east, +Y up and -Z true north.
                 // ARCore Geospatial uses east/up/south, so identity rotation aligns the axes;
                 // the building's 4.4-degree orientation is already present in the model geometry.
                 earth.resolveAnchorOnTerrainAsync(
-                    52.58737559898257, 6.391727308884152, 0.0,
+                    targetLatitude, targetLongitude, 0.0,
                     0f, 0f, 0f, 1f
                 ) { resolved, state ->
                     if (state == Anchor.TerrainAnchorState.SUCCESS && resolved != null) {
@@ -174,6 +191,61 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         } catch (e: Exception) {
             report("3D-camera fout: ${e.message ?: e.javaClass.simpleName}")
         }
+    }
+
+
+    private fun drawStandalone() {
+        GLES20.glClearColor(0.12f, 0.16f, 0.20f, 1f)
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+        val parts = modelData
+        if (parts == null) {
+            report("3D-model wordt geladen…")
+            return
+        }
+        if (!standaloneTransformReady) {
+            var minX = Float.POSITIVE_INFINITY; var minY = Float.POSITIVE_INFINITY; var minZ = Float.POSITIVE_INFINITY
+            var maxX = Float.NEGATIVE_INFINITY; var maxY = Float.NEGATIVE_INFINITY; var maxZ = Float.NEGATIVE_INFINITY
+            for (part in parts) {
+                val vertices = part.vertices
+                var i = 0
+                while (i + 2 < vertices.limit()) {
+                    val x = vertices.get(i); val y = vertices.get(i + 1); val z = vertices.get(i + 2)
+                    minX = minOf(minX, x); minY = minOf(minY, y); minZ = minOf(minZ, z)
+                    maxX = maxOf(maxX, x); maxY = maxOf(maxY, y); maxZ = maxOf(maxZ, z)
+                    i += 3
+                }
+            }
+            val extent = maxOf(maxX - minX, maxY - minY, maxZ - minZ).coerceAtLeast(0.001f)
+            val scale = 2.8f / extent
+            Matrix.setIdentityM(standaloneModel, 0)
+            Matrix.scaleM(standaloneModel, 0, scale, scale, scale)
+            Matrix.translateM(standaloneModel, 0, -(minX + maxX) / 2f, -(minY + maxY) / 2f, -(minZ + maxZ) / 2f)
+            standaloneTransformReady = true
+            report("3D-model geladen — vrij bekijken")
+        }
+        val aspect = width.toFloat() / height.coerceAtLeast(1).toFloat()
+        Matrix.perspectiveM(projection, 0, 45f, aspect.coerceAtLeast(0.1f), 0.1f, 100f)
+        Matrix.setLookAtM(view, 0, 0f, 2.0f, 7.5f, 0f, 0f, 0f, 0f, 1f, 0f)
+        Matrix.multiplyMM(mv, 0, view, 0, standaloneModel, 0)
+        Matrix.multiplyMM(mvp, 0, projection, 0, mv, 0)
+        GLES20.glEnable(GLES20.GL_DEPTH_TEST)
+        GLES20.glEnable(GLES20.GL_CULL_FACE)
+        GLES20.glUseProgram(modelProgram)
+        GLES20.glUniformMatrix4fv(modelMvp, 1, false, mvp, 0)
+        for (part in parts) {
+            part.vertices.position(0)
+            GLES20.glEnableVertexAttribArray(modelPos)
+            GLES20.glVertexAttribPointer(modelPos, 3, GLES20.GL_FLOAT, false, 0, part.vertices)
+            GLES20.glUniform4fv(modelColor, 1, part.color, 0)
+            if (part.indices != null) {
+                part.indices.position(0)
+                GLES20.glDrawElements(GLES20.GL_TRIANGLES, part.count, GLES20.GL_UNSIGNED_SHORT, part.indices)
+            } else {
+                GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, part.count)
+            }
+            GLES20.glDisableVertexAttribArray(modelPos)
+        }
+        GLES20.glDisable(GLES20.GL_CULL_FACE)
     }
 
     private fun loadModel() {
