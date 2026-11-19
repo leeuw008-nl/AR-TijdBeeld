@@ -455,6 +455,7 @@ class AdminActivity : Activity() {
                         ).show()
                     } else {
                         startActivity(Intent(this@AdminActivity, ModelArActivity::class.java).apply {
+                            putExtra("standalone_preview", true)
                             putExtra("photoTitle", OMMERSCHANS_PHOTO_TITLE)
                         })
                     }
@@ -1020,16 +1021,24 @@ class AdminActivity : Activity() {
     private fun openCamera() {
         val p = photos[selected]
         if (p.imageUrl.isBlank()) { Toast.makeText(this, "Vul eerst de URL van de foto in.", Toast.LENGTH_LONG).show(); return }
-        startActivityForResult(Intent(this, MainActivity::class.java).apply {
-            putExtra("title", p.title); putExtra("imageUrl", p.imageUrl)
-            putExtra("objectLat", p.objectLat); putExtra("objectLng", p.objectLng)
-            putExtra("cameraLat", p.cameraLat); putExtra("cameraLng", p.cameraLng)
-            putExtra("imageWidthMeters", p.imageWidthMeters)
-            putExtra("imageHeightMeters", p.imageHeightMeters)
-            putExtra("photoIndex", selected)
-            putExtra("photoId", p.id)
-            putExtra("admin_camera", true)
-        }, 3001)
+        if (p.title.trim() == OMMERSCHANS_PHOTO_TITLE) {
+            startActivityForResult(Intent(this, ModelArActivity::class.java).apply {
+                putExtra("photoTitle", p.title)
+                putExtra("objectLat", p.objectLat)
+                putExtra("objectLng", p.objectLng)
+            }, 3001)
+        } else {
+            startActivityForResult(Intent(this, MainActivity::class.java).apply {
+                putExtra("title", p.title); putExtra("imageUrl", p.imageUrl)
+                putExtra("objectLat", p.objectLat); putExtra("objectLng", p.objectLng)
+                putExtra("cameraLat", p.cameraLat); putExtra("cameraLng", p.cameraLng)
+                putExtra("imageWidthMeters", p.imageWidthMeters)
+                putExtra("imageHeightMeters", p.imageHeightMeters)
+                putExtra("photoIndex", selected)
+                putExtra("photoId", p.id)
+                putExtra("admin_camera", true)
+            }, 3001)
+        }
         returningFromCamera = true
     }
 
