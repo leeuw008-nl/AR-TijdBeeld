@@ -127,15 +127,20 @@ class AdminActivity : Activity() {
                 connection?.disconnect()
             }
             if (status == 401) {
-                prefs.edit().remove("admin_session_token").remove("admin_session_expires_at").apply()
+                prefs.edit().remove("admin_session_token").remove("admin_session_expires_at").commit()
                 runOnUiThread {
-                    Toast.makeText(this, "De beheersessie is niet meer geldig. Log opnieuw in.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "De beheersessie is ingetrokken. Log opnieuw in.", Toast.LENGTH_LONG).show()
+                    startActivity(Intent(this, AdminLoginActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
                     finish()
                 }
             } else if (status in 200..299) {
-                val expiresIn = runCatching { JSONObject(responseBody).optLong("expiresIn", 24L * 60L * 60L) }
-                    .getOrDefault(24L * 60L * 60L)
-                prefs.edit().putLong("admin_session_expires_at", System.currentTimeMillis() + expiresIn * 1000L).apply()
+                val response = runCatching { JSONObject(responseBody) }.getOrNull()
+                val persistent = response?.optBoolean("persistent", false) == true
+                val expiresIn = response?.optLong("expiresIn", 0L) ?: 0L
+                prefs.edit().putLong(
+                    "admin_session_expires_at",
+                    if (persistent || expiresIn <= 0L) 0L else System.currentTimeMillis() + expiresIn * 1000L
+                ).apply()
             }
         }.start()
     }
