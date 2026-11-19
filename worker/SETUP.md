@@ -34,9 +34,10 @@ De hash-generator vraagt het wachtwoord interactief en toont alleen de PBKDF2-ha
 
 Herstelcodes bestaan uit acht cijfers en zijn 15 minuten geldig. Na vijf onjuiste codes moet een nieuwe code worden aangevraagd. Na een geslaagde wachtwoordwijziging worden bestaande sessies ingetrokken. Het nieuwe wachtwoord wordt gehasht opgeslagen in KV; het gewone wachtwoord wordt nergens bewaard.
 
-Sessies verlopen na acht uur. Mislukte inlogpogingen worden per IP-adres tijdelijk begrensd.
-De Worker bewaart sessietokens alleen gehasht in KV. Het wachtwoord wordt gecontroleerd
-met PBKDF2-HMAC-SHA-256 en een unieke salt.
+Beheersessies verlopen niet automatisch: de KV-records krijgen geen TTL en blijven geldig
+tot expliciet uitloggen of een geslaagde wachtwoordreset. Mislukte inlogpogingen worden per
+IP-adres tijdelijk begrensd. De Worker bewaart sessietokens alleen gehasht in KV. Het
+wachtwoord wordt gecontroleerd met PBKDF2-HMAC-SHA-256 en een unieke salt.
 
 ## Nog uit te voeren vóór gebruik
 
