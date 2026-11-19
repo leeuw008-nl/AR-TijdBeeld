@@ -221,7 +221,37 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         if (!standaloneTransformReady) {
             var minX = Float.POSITIVE_INFINITY; var minY = Float.POSITIVE_INFINITY; var minZ = Float.POSITIVE_INFINITY
             var maxX = Float.NEGATIVE_INFINITY; var maxY = Float.NEGATIVE_INFINITY; var maxZ = Float.NEGATIVE_INFINITY
-            drawModelParts(parts)
+            for (part in parts) {
+                val vertices = part.vertices
+                var i = 0
+                while (i + 2 < vertices.limit()) {
+                    val x = vertices.get(i); val y = vertices.get(i + 1); val z = vertices.get(i + 2)
+                    minX = minOf(minX, x); minY = minOf(minY, y); minZ = minOf(minZ, z)
+                    maxX = maxOf(maxX, x); maxY = maxOf(maxY, y); maxZ = maxOf(maxZ, z)
+                    i += 3
+                }
+            }
+            val extent = maxOf(maxX - minX, maxY - minY, maxZ - minZ).coerceAtLeast(0.001f)
+            val scale = 2.8f / extent
+            Matrix.setIdentityM(standaloneModel, 0)
+            Matrix.scaleM(standaloneModel, 0, scale, scale, scale)
+            Matrix.translateM(standaloneModel, 0, -(minX + maxX) / 2f, -(minY + maxY) / 2f, -(minZ + maxZ) / 2f)
+            standaloneTransformReady = true
+            report("3D-model geladen — vrij bekijken")
+        }
+        val aspect = width.toFloat() / height.coerceAtLeast(1).toFloat()
+        Matrix.perspectiveM(projection, 0, 45f, aspect.coerceAtLeast(0.1f), 0.1f, 100f)
+        Matrix.setLookAtM(view, 0, 0f, standaloneCameraDistance * 0.24f, standaloneCameraDistance, 0f, 0f, 0f, 0f, 1f, 0f)
+        Matrix.setRotateM(standaloneRotation, 0, standaloneRotationX, 1f, 0f, 0f)
+        Matrix.rotateM(standaloneRotation, 0, standaloneRotationY, 0f, 1f, 0f)
+        Matrix.multiplyMM(standaloneRotatedModel, 0, standaloneRotation, 0, standaloneModel, 0)
+        Matrix.multiplyMM(mv, 0, view, 0, standaloneRotatedModel, 0)
+        Matrix.multiplyMM(mvp, 0, projection, 0, mv, 0)
+        GLES20.glEnable(GLES20.GL_DEPTH_TEST)
+        GLES20.glEnable(GLES20.GL_CULL_FACE)
+        GLES20.glUseProgram(modelProgram)
+        GLES20.glUniformMatrix4fv(modelMvp, 1, false, mvp, 0)
+        drawModelParts(parts)
         GLES20.glDisable(GLES20.GL_CULL_FACE)
     }
 
