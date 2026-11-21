@@ -124,6 +124,7 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_2
+          emulator-boot-timeout: 900
           script: |
             adb install -r dist/AR-TijdBeeld.apk
             adb shell monkey -p nl.leeuw008.tijdbeeld 1
