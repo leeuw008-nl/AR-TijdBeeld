@@ -156,12 +156,14 @@ class BackupActivity : Activity() {
         var total = 0L
         var manifest: JSONObject? = null
         var prefsJson: JSONObject? = null
+        val seen = HashSet<String>()
         try {
             ZipInputStream(input).use { zip ->
                 while (true) {
                     val entry = zip.nextEntry ?: break
-                    check(!entry.isDirectory) { "Mappen als losse ZIP-vermelding worden niet ondersteund" }
+                    check(!entry.isDirectory) { "Ongeldige mapvermelding in ZIP" }
                     val name = entry.name
+                    check(seen.add(name)) { "Dubbel bestand in back-up: $name" }
                     check(!name.startsWith("/") && !name.contains("\\") &&
                         name.split('/').none { it == ".." || it.isEmpty() }) { "Ongeldig bestandspad in back-up" }
                     check(name == "manifest.json" || name == "shared_preferences.json" ||
@@ -170,6 +172,7 @@ class BackupActivity : Activity() {
                     if (name == "manifest.json" || name == "shared_preferences.json") {
                         val bytes = zip.readBytesBounded(2L * 1024L * 1024L)
                         total += bytes.size
+                        check(total <= maxBackupBytes) { "Back-up is groter dan 256 MB" }
                         if (name == "manifest.json") manifest = JSONObject(String(bytes, Charsets.UTF_8))
                         else prefsJson = JSONObject(String(bytes, Charsets.UTF_8))
                     } else {
@@ -193,13 +196,106 @@ class BackupActivity : Activity() {
             val m = manifest ?: error("manifest.json ontbreekt")
             check(m.optString("format") == "tijdbeeld-local-backup") { "Dit is geen TijdBeeld-back-up" }
             check(m.optInt("formatVersion") in 1..2) { "Niet-ondersteunde back-upversie" }
+            check(m.optString("baseline") == "build-139") { "Deze back-up hoort niet bij de build-139 gegevensindeling" }
             val savedPrefs = prefsJson ?: error("Instellingenbestand ontbreekt")
-            restorePreferences(savedPrefs)
-            replaceDirectory(File(stage, "files"), filesDir)
-            replaceDirectory(File(stage, "databases"), getDatabasePath("placeholder").parentFile!!)
-            getExternalFilesDir(null)?.let { replaceDirectory(File(stage, "external_files"), it) }
+            validatePreferences(savedPrefs)
+
+            // Bewaar de huidige staat totdat alle mappen en voorkeuren succesvol zijn vervangen.
+            val prefsBefore = preferencesToJson()
+            val replacements = mutableListOf<Pair<File, File>>()
+            try {
+                listOf(
+                    File(stage, "files") to filesDir,
+                    File(stage, "databases") to getDatabasePath("placeholder").parentFile!!,
+                    File(stage, "external_files") to getExternalFilesDir(null)
+                ).forEach { (source, destination) ->
+                    if (destination != null && source.exists()) {
+                        replacements.add(replaceDirectoryTransactional(source, destination))
+                    }
+                }
+                restorePreferences(savedPrefs)
+            } catch (e: Exception) {
+                try { restorePreferences(prefsBefore) } catch (_: Exception) { }
+                replacements.asReversed().forEach { (oldDir, destination) ->
+                    destination.deleteRecursively()
+                    if (oldDir.exists()) oldDir.renameTo(destination)
+                }
+                throw e
+            }
+            replacements.forEach { (oldDir, _) -> oldDir.deleteRecursively() }
         } finally {
             stage.deleteRecursively()
+        }
+    }
+
+    private fun preferencesToJson(): JSONObject {
+        val result = JSONObject()
+        getSharedPreferences("tijdbeeld_admin", MODE_PRIVATE).all.forEach { (key, value) ->
+            if (key in excludedPrefs) return@forEach
+            val item = JSONObject()
+            when (value) {
+                is String -> { item.put("type", "string"); item.put("value", value) }
+                is Boolean -> { item.put("type", "boolean"); item.put("value", value) }
+                is Int -> { item.put("type", "int"); item.put("value", value) }
+                is Long -> { item.put("type", "long"); item.put("value", value) }
+                is Float -> { item.put("type", "float"); item.put("value", value.toDouble()) }
+                is Set<*> -> {
+                    item.put("type", "string_set")
+                    val array = JSONArray()
+                    value.filterIsInstance<String>().forEach { array.put(it) }
+                    item.put("value", array)
+                }
+            }
+            result.put(key, item)
+        }
+        return result
+    }
+
+    private fun validatePreferences(json: JSONObject) {
+        val keys = json.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            val item = json.getJSONObject(key)
+            when (item.getString("type")) {
+                "string" -> item.getString("value")
+                "boolean" -> item.getBoolean("value")
+                "int" -> item.getInt("value")
+                "long" -> item.getLong("value")
+                "float" -> item.getDouble("value")
+                "string_set" -> item.getJSONArray("value")
+                else -> error("Onbekend voorkeurstype voor $key")
+            }
+        }
+    }
+
+    /** Copy to a sibling staging directory so the final rename stays on the destination filesystem. */
+    private fun replaceDirectoryTransactional(source: File, destination: File): Pair<File, File> {
+        val staged = File(destination.parentFile, destination.name + ".restore-new")
+        val previous = File(destination.parentFile, destination.name + ".restore-old")
+        staged.deleteRecursively()
+        previous.deleteRecursively()
+        check(staged.mkdirs()) { "Herstelmap kan niet worden aangemaakt: ${destination.name}" }
+        copyDirectory(source, staged)
+        if (destination.exists()) check(destination.renameTo(previous)) {
+            "Huidige map kan niet veilig worden bewaard: ${destination.name}"
+        }
+        if (!staged.renameTo(destination)) {
+            previous.takeIf { it.exists() }?.renameTo(destination)
+            staged.deleteRecursively()
+            error("Herstellen van map mislukt: ${destination.name}")
+        }
+        return previous to destination
+    }
+
+    private fun copyDirectory(source: File, destination: File) {
+        source.listFiles()?.forEach { child ->
+            val target = File(destination, child.name)
+            if (child.isDirectory) {
+                check(target.mkdirs()) { "Map kan niet worden aangemaakt: ${child.name}" }
+                copyDirectory(child, target)
+            } else {
+                child.inputStream().use { input -> target.outputStream().use { output -> input.copyTo(output) } }
+            }
         }
     }
 
