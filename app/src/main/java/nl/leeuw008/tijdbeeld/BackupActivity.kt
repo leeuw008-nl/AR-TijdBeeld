@@ -335,25 +335,40 @@ class BackupActivity : Activity() {
         backup.deleteRecursively()
     }
 
-    private fun addDirectory(zip: ZipOutputStream, directory: File, prefix: String) {
+    private fun addDirectory(zip: ZipOutputStream, directory: File, prefix: String, hashes: JSONObject) {
         if (!directory.exists() || !directory.isDirectory) return
         directory.listFiles()?.sortedBy { it.name }?.forEach { child ->
-            if (child.isDirectory) addDirectory(zip, child, prefix + child.name + "/")
-            else if (child.isFile) addFile(zip, child, prefix + child.name)
+            if (child.isDirectory) addDirectory(zip, child, prefix + child.name + "/", hashes)
+            else if (child.isFile) addFile(zip, child, prefix + child.name, hashes)
         }
     }
 
-    private fun addFile(zip: ZipOutputStream, file: File, path: String) {
+    private fun addFile(zip: ZipOutputStream, file: File, path: String, hashes: JSONObject) {
+        val digest = MessageDigest.getInstance("SHA-256")
         zip.putNextEntry(ZipEntry(path))
-        file.inputStream().use { it.copyTo(zip) }
+        file.inputStream().use { input ->
+            val buffer = ByteArray(8192)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+                zip.write(buffer, 0, count)
+            }
+        }
         zip.closeEntry()
+        hashes.put(path, digest.digest().joinToString("") { "%02x".format(it) })
     }
 
-    private fun putText(zip: ZipOutputStream, path: String, value: String) {
+    private fun putText(zip: ZipOutputStream, path: String, value: String, hashes: JSONObject) {
+        val bytes = value.toByteArray(Charsets.UTF_8)
         zip.putNextEntry(ZipEntry(path))
-        zip.write(value.toByteArray(Charsets.UTF_8))
+        zip.write(bytes)
         zip.closeEntry()
+        hashes.put(path, sha256(bytes))
     }
+
+    private fun sha256(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
     private fun java.util.zip.ZipInputStream.readBytesBounded(limit: Long): ByteArray {
         val out = java.io.ByteArrayOutputStream()
