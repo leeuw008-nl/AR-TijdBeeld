@@ -8,12 +8,15 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        // Separate package: #139 remains installed and untouched.
-        applicationId = "nl.leeuw008.tijdbeeld.authfix"
+        // Keep #139's package identity so this APK updates the existing installation.
+        applicationId = "nl.leeuw008.tijdbeeld.diagnose32stable"
         minSdk = 24
         targetSdk = 32
-        versionCode = 1
-        versionName = "0.1.3-authfix"
+        versionCode = 2
+        versionName = "0.1.3"
+        manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
+        // Inject the ARCore API key from the GitHub Actions secret; never store it in source.
+        manifestPlaceholders["arcoreApiKey"] = System.getenv("ARCORE_API_KEY") ?: ""
     }
 
     signingConfigs {
@@ -27,8 +30,7 @@ android {
 
     buildTypes {
         getByName("debug") {
-            manifestPlaceholders["appLabel"] = "AR-TijdBeeld #151"
-            // Reuse the verified #139 signing certificate; the distinct package installs side by side.
+            // Reuse the exact #139 signing key so Android accepts this as an update.
             signingConfig = signingConfigs.getByName("persistentDiagnostic")
         }
     }
@@ -47,6 +49,6 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("com.google.ar:core:1.56.0")
     implementation("com.google.android.gms:play-services-location:21.3.0")
-    // Required by ARCore Geospatial keyless authorization.
+    // Keep Google auth available; the Geospatial API will use the explicit API key.
     implementation("com.google.android.gms:play-services-auth:21.6.0")
 }
