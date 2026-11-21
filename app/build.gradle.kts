@@ -3,40 +3,34 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-val fixedKeystoreFile = file("tijdbeeld-release.jks")
-val hasFixedKeystore = fixedKeystoreFile.exists()
-
 android {
     namespace = "nl.leeuw008.tijdbeeld"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "nl.leeuw008.tijdbeeld"
+        // Keep the exact application ID of the known-installable #139.
+        // This is required both for an in-place update and its matching OAuth client.
+        applicationId = "nl.leeuw008.tijdbeeld.diagnose32stable"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 32
         versionCode = 2
-        versionName = "0.1.0"
+        versionName = "0.1.3"
     }
 
     signingConfigs {
-        if (hasFixedKeystore) {
-            create("fixedDebug") {
-                storeFile = fixedKeystoreFile
-                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: ""
-                keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "tijdbeeld"
-                keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: ""
-                enableV1Signing = true
-                enableV2Signing = true
-            }
+        create("persistentDiagnostic") {
+            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
         }
     }
 
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
-            if (hasFixedKeystore) {
-                signingConfig = signingConfigs.getByName("fixedDebug")
-            }
+            // Reuse the exact cached #139 signing key so Android accepts this as an update.
+            signingConfig = signingConfigs.getByName("persistentDiagnostic")
         }
     }
 
