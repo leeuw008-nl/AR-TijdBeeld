@@ -90,6 +90,17 @@ jobs:
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
           "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='3'|application-label:'AR-TijdBeeld'"
 
+      - name: Test APK installation on Android 12 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 31
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: |
+            adb install -r dist/AR-TijdBeeld.apk
+            adb shell pm path nl.leeuw008.tijdbeeld.diagnose32stable
+
       - name: Upload AR-TijdBeeld APK
         uses: actions/upload-artifact@v4
         with:
