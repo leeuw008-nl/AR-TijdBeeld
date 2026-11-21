@@ -222,6 +222,14 @@ class BackupActivity : Activity() {
             val savedPrefs = prefsJson ?: error("Instellingenbestand ontbreekt")
             validatePreferences(savedPrefs)
 
+            // Zorg dat ook lege mappen uit de back-up worden teruggezet; anders zouden
+            // bestanden die na de back-up zijn aangemaakt ten onrechte blijven bestaan.
+            listOf("files", "databases", "external_files").forEach { name ->
+                check(File(stage, name).mkdirs() || File(stage, name).isDirectory) {
+                    "Herstelmap kan niet worden voorbereid: $name"
+                }
+            }
+
             // Bewaar de huidige staat totdat alle mappen en voorkeuren succesvol zijn vervangen.
             val prefsBefore = preferencesToJson()
             val replacements = mutableListOf<Pair<File, File>>()
