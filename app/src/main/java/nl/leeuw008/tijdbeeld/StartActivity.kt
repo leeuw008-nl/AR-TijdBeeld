@@ -205,6 +205,10 @@ class StartActivity : Activity() {
 
         PopupMenu(this, anchor).apply {
             menu.add("Startpagina").setOnMenuItemClickListener { true }
+            menu.add("Back-up / herstellen").setOnMenuItemClickListener {
+                startActivity(Intent(this@StartActivity, BackupActivity::class.java))
+                true
+            }
             // Beheer is altijd gekoppeld aan een geldige serversessie.
             // Zonder token kan een foto alleen lokaal worden opgeslagen en verdwijnt
             // die bij herinstallatie. Daarom nooit lokaal beheer aanbieden alsof
