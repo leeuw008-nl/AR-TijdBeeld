@@ -104,15 +104,29 @@ jobs:
           emulator-build: 16740729
           emulator-boot-timeout: 900
           script: |
+            set -u
+            adb logcat -c
             adb install -r dist/AR-TijdBeeld.apk
             adb shell monkey -p nl.leeuw008.tijdbeeld.diagnose32stable 1
             sleep 8
-            adb shell pidof nl.leeuw008.tijdbeeld.diagnose32stable
+            adb logcat -d -v time > dist/emulator-logcat.txt
+            adb shell dumpsys activity activities > dist/emulator-activities.txt
+            echo "App process after launch:"
+            adb shell pidof nl.leeuw008.tijdbeeld.diagnose32stable || true
+            if grep -E "FATAL EXCEPTION|AndroidRuntime.*(FATAL|Process:)|Fatal signal" dist/emulator-logcat.txt; then
+              echo "::error::Android reported a fatal app crash. Diagnostic logs are included in the artifact."
+              exit 1
+            fi
+            echo "No fatal Android crash was detected. Emulator process presence is recorded but is not used as a pass/fail condition."
 
-      - name: Upload verified APK
+      - name: Upload verified APK and emulator diagnostics
+        if: always() && hashFiles('dist/AR-TijdBeeld.apk') != ''
         uses: actions/upload-artifact@v4
         with:
           name: AR-TijdBeeld-139-API-key-auth
-          path: dist/AR-TijdBeeld.apk
-          if-no-files-found: error
+          path: |
+            dist/AR-TijdBeeld.apk
+            dist/emulator-logcat.txt
+            dist/emulator-activities.txt
+          if-no-files-found: warn
           retention-days: 31
