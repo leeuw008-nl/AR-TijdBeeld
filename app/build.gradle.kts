@@ -25,6 +25,9 @@ android {
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"
+            // Match the known-good #139 APK signature schemes for installer compatibility.
+            enableV1Signing = true
+            enableV2Signing = true
         }
     }
 
