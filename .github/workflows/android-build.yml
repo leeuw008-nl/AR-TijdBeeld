@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: tijdbeeld-android-build-${{ github.ref }}
+  group: tijdbeeld-android-build-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
