@@ -16,21 +16,14 @@
         android:theme="@style/AppTheme">
         <meta-data android:name="com.google.ar.core" android:value="optional" />
 
+        <activity android:name=".BackupActivity" android:exported="false" />
         <activity android:name=".ModelArActivity" android:configChanges="orientation|screenSize|screenLayout" android:exported="false" />
         <activity android:name=".AdminLoginActivity" android:exported="false" />
         <activity android:name=".PhotoMapActivity" android:exported="false" />
-        <activity android:name=".PhotoOverviewActivity"
-            android:exported="false" />
-        <activity
-            android:name=".MainActivity"
-            android:configChanges="orientation|screenSize|screenLayout"
-            android:exported="false" />
-        <activity
-            android:name=".AdminActivity"
-            android:exported="false" />
-        <activity
-            android:name=".StartActivity"
-            android:exported="true">
+        <activity android:name=".PhotoOverviewActivity" android:exported="false" />
+        <activity android:name=".MainActivity" android:configChanges="orientation|screenSize|screenLayout" android:exported="false" />
+        <activity android:name=".AdminActivity" android:exported="false" />
+        <activity android:name=".StartActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
