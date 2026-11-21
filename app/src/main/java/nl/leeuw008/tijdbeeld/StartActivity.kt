@@ -237,6 +237,10 @@ class StartActivity : Activity() {
                     true
                 }
             }
+            menu.add("Back-up maken").setOnMenuItemClickListener {
+                startActivity(Intent(this@StartActivity, BackupActivity::class.java))
+                true
+            }
             show()
         }
     }
