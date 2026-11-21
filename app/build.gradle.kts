@@ -11,8 +11,8 @@ android {
         applicationId = "nl.leeuw008.tijdbeeld.diagnose32stable"
         minSdk = 24
         targetSdk = 32
-        versionCode = 1
-        versionName = "0.1.2"
+        versionCode = 2
+        versionName = "0.1.3"
     }
 
     signingConfigs {
@@ -27,7 +27,7 @@ android {
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
-            // Reuse one cached debug keystore so later APKs remain valid updates.
+            // Reuse the exact persistent diagnostic signing key from build #139.
             signingConfig = signingConfigs.getByName("persistentDiagnostic")
         }
     }
@@ -46,6 +46,5 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("com.google.ar:core:1.56.0")
     implementation("com.google.android.gms:play-services-location:21.3.0")
-    // Required by ARCore Geospatial keyless authorization.
     implementation("com.google.android.gms:play-services-auth:21.6.0")
 }
