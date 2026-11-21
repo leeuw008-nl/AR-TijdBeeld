@@ -112,11 +112,8 @@ jobs:
             adb logcat -d -v time > dist/emulator-logcat.txt
             adb shell dumpsys activity activities > dist/emulator-activities.txt
             echo "App process after launch:"
-            adb shell pidof nl.leeuw008.tijdbeeld.diagnose32stable || true
-            if grep -E "FATAL EXCEPTION|AndroidRuntime.*(FATAL|Process:)|Fatal signal" dist/emulator-logcat.txt; then
-              echo "::error::Android reported a fatal app crash. Diagnostic logs are included in the artifact."
-              exit 1
-            fi
+            adb shell pidof nl.leeuw008.tijdbeeld.authfix || true
+            if grep -E "FATAL EXCEPTION|AndroidRuntime.*(FATAL|Process:)|Fatal signal" dist/emulator-logcat.txt; then echo "::error::Android reported a fatal app crash. Diagnostic logs are included in the artifact."; exit 1; fi
             echo "No fatal Android crash was detected. Emulator process presence is recorded but is not used as a pass/fail condition."
 
       - name: Upload verified APK and emulator diagnostics
