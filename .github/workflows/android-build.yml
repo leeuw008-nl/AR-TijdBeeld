@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: tijdbeeld-android-build-\${{ github.ref }}
+  group: tijdbeeld-android-build-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -30,7 +30,7 @@ jobs:
 
       - name: Prepare fixed Android signing key
         env:
-          ANDROID_KEYSTORE_BASE64: \${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
             echo "::error::ANDROID_KEYSTORE_BASE64 is missing; refusing to create an APK with a different signing identity."
@@ -41,8 +41,8 @@ jobs:
 
       - name: Verify registered Android OAuth signing certificate
         env:
-          ANDROID_KEYSTORE_PASSWORD: \${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: \${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           if [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ]; then
             echo "::error::Keystore password or alias secret is missing."
@@ -58,9 +58,9 @@ jobs:
 
       - name: Verify private key password
         env:
-          ANDROID_KEYSTORE_PASSWORD: \${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_PASSWORD: \${{ secrets.ANDROID_KEY_PASSWORD }}
-          ANDROID_KEY_ALIAS: \${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           if [ -z "$ANDROID_KEY_PASSWORD" ]; then
             echo "::error::Private key password secret is missing."
@@ -97,9 +97,9 @@ jobs:
 
       - name: Build AR-TijdBeeld APK
         env:
-          ANDROID_KEYSTORE_PASSWORD: \${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: \${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: \${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Verify APK identity, signature and alignment
