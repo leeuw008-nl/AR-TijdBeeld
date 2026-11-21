@@ -64,38 +64,26 @@ jobs:
           cat app/src/main/assets/ommerschans-topdown.json
 
       - name: Build AR-TijdBeeld APK
-        env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: gradle --no-daemon :app:assembleDebug
 
-      - name: Prepare AR-TijdBeeld APK
+      - name: Prepare and verify AR-TijdBeeld APK
         run: |
           mkdir -p dist
           APK_PATH="$(find app/build/outputs/apk/debug -type f -name '*.apk' -print -quit)"
-          if [ -z "$APK_PATH" ]; then
-            echo "::error::AR-TijdBeeld APK was not generated."
-            find app/build/outputs -maxdepth 5 -type f -print || true
-            exit 1
-          fi
+          test -n "$APK_PATH"
           cp "$APK_PATH" dist/AR-TijdBeeld.apk
           test -s dist/AR-TijdBeeld.apk
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
-          if [ -z "$APKSIGNER" ]; then
-            echo "::error::Android apksigner was not found."
-            exit 1
-          fi
-          "$APKSIGNER" verify --verbose --print-certs dist/AR-TijdBeeld.apk
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
-          "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='1'|application-label:'AR-TijdBeeld nieuw'"
+          test -n "$APKSIGNER"
+          test -n "$AAPT"
+          "$APKSIGNER" verify --verbose --print-certs dist/AR-TijdBeeld.apk
+          "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='2'|application-label:'AR-TijdBeeld'"
 
       - name: Upload AR-TijdBeeld APK
         uses: actions/upload-artifact@v4
         with:
-          name: AR-TijdBeeld
+          name: AR-TijdBeeld-backup-export
           path: dist/AR-TijdBeeld.apk
           if-no-files-found: error
           retention-days: 31
-
-
