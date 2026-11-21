@@ -16,6 +16,7 @@
         android:theme="@style/AppTheme">
         <meta-data android:name="com.google.ar.core" android:value="optional" />
 
+        <activity android:name=".BackupActivity" android:exported="false" />
         <activity android:name=".ModelArActivity" android:configChanges="orientation|screenSize|screenLayout" android:exported="false" />
         <activity android:name=".AdminLoginActivity" android:exported="false" />
         <activity android:name=".PhotoMapActivity" android:exported="false" />
