@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes, feature/ommerschans-photo-georef, fix/ommerschans-topokaart-footprint, fix/persistent-admin-session-and-inner-wall, backup/export-import-from-139 ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, fix/persistent-admin-session-and-inner-wall ]
   workflow_dispatch:
 
 permissions:
@@ -97,5 +97,3 @@ jobs:
           path: dist/AR-TijdBeeld.apk
           if-no-files-found: error
           retention-days: 31
-
-
