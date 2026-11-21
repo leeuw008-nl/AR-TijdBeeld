@@ -356,7 +356,7 @@ class BackupActivity : Activity() {
             }
         }
         zip.closeEntry()
-        hashes.put(path, digest.digest().joinToString("") { "%02x".format(it) })
+        hashes.put(path, digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) })
     }
 
     private fun putText(zip: ZipOutputStream, path: String, value: String, hashes: JSONObject) {
@@ -368,7 +368,7 @@ class BackupActivity : Activity() {
     }
 
     private fun sha256(bytes: ByteArray): String =
-        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
     private fun java.util.zip.ZipInputStream.readBytesBounded(limit: Long): ByteArray {
         val out = java.io.ByteArrayOutputStream()
