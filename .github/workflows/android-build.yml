@@ -87,12 +87,12 @@ jobs:
           "$APKSIGNER" verify --verbose --print-certs dist/AR-TijdBeeld.apk
           "$APKSIGNER" verify --print-certs dist/AR-TijdBeeld.apk | grep -qi "2ebb7da5203326e6c5aa5474c93e0d03f258ea96"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
-          "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -F "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='2' versionName='0.1.3'"
+          "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -F "package: name='nl.leeuw008.tijdbeeld.authfix' versionCode='2' versionName='0.1.3'"
           MANIFEST_DUMP="$("$AAPT" dump xmltree dist/AR-TijdBeeld.apk AndroidManifest.xml)"
           echo "$MANIFEST_DUMP" | grep -q "com.google.android.ar.API_KEY"
           ZIPALIGN="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign | sort -V | tail -n 1)"
           "$ZIPALIGN" -c -v 4 dist/AR-TijdBeeld.apk
-          echo "Verified: #139 package, original signing certificate and ARCore API-key manifest entry."
+          echo "Verified: separate authfix package, original #139 signing certificate and ARCore API-key manifest entry."
 
       - name: Install and launch on Android 12 emulator
         uses: ReactiveCircus/android-emulator-runner@v2
@@ -105,9 +105,9 @@ jobs:
           emulator-boot-timeout: 900
           script: |
             set -u
-            adb logcat -c
+            adb logcat -c || true
             adb install -r dist/AR-TijdBeeld.apk
-            adb shell monkey -p nl.leeuw008.tijdbeeld.diagnose32stable 1
+            adb shell monkey -p nl.leeuw008.tijdbeeld.authfix 1
             sleep 8
             adb logcat -d -v time > dist/emulator-logcat.txt
             adb shell dumpsys activity activities > dist/emulator-activities.txt
@@ -123,7 +123,7 @@ jobs:
         if: always() && hashFiles('dist/AR-TijdBeeld.apk') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: AR-TijdBeeld-139-API-key-auth
+          name: AR-TijdBeeld-authfix-side-by-side
           path: |
             dist/AR-TijdBeeld.apk
             dist/emulator-logcat.txt
