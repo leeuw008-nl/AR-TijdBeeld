@@ -97,8 +97,19 @@ jobs:
           "$ZIPALIGN" -c -v 4 dist/AR-TijdBeeld.apk
           echo "Verified: separate authfix package, original #139 signing certificate and ARCore API-key manifest entry."
 
+      # Publish the verified APK before emulator startup so a slow or stuck emulator
+      # can never prevent the user from receiving the side-by-side diagnostic build.
+      - name: Upload verified side-by-side APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AR-TijdBeeld-authfix-side-by-side
+          path: dist/AR-TijdBeeld.apk
+          if-no-files-found: error
+          retention-days: 31
+
       - name: Install and launch on Android 12 emulator
         uses: ReactiveCircus/android-emulator-runner@v2
+        timeout-minutes: 12
         with:
           api-level: 32
           target: google_apis
@@ -119,13 +130,12 @@ jobs:
             if grep -E "FATAL EXCEPTION|AndroidRuntime.*(FATAL|Process:)|Fatal signal" dist/emulator-logcat.txt; then echo "::error::Android reported a fatal app crash. Diagnostic logs are included in the artifact."; exit 1; fi
             echo "No fatal Android crash was detected. Emulator process presence is recorded but is not used as a pass/fail condition."
 
-      - name: Upload verified APK and emulator diagnostics
-        if: always() && hashFiles('dist/AR-TijdBeeld.apk') != ''
+      - name: Upload emulator diagnostics
+        if: always() && hashFiles('dist/emulator-logcat.txt') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: AR-TijdBeeld-authfix-side-by-side
+          name: AR-TijdBeeld-authfix-emulator-diagnostics
           path: |
-            dist/AR-TijdBeeld.apk
             dist/emulator-logcat.txt
             dist/emulator-activities.txt
           if-no-files-found: warn
