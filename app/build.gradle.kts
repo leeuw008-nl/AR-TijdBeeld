@@ -8,8 +8,8 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        // Keep #139's package identity so this APK updates the existing installation.
-        applicationId = "nl.leeuw008.tijdbeeld.diagnose32stable"
+        // Separate package identity: install alongside #139; never update or replace it.
+        applicationId = "nl.leeuw008.tijdbeeld.authfix"
         minSdk = 24
         targetSdk = 32
         versionCode = 2
@@ -30,7 +30,7 @@ android {
 
     buildTypes {
         getByName("debug") {
-            // Reuse the exact #139 signing key so Android accepts this as an update.
+            // Reuse the verified #139 signing certificate; the distinct package installs side-by-side.
             signingConfig = signingConfigs.getByName("persistentDiagnostic")
         }
     }
