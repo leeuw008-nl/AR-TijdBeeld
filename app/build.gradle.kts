@@ -8,13 +8,12 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        // Keep the exact application ID of the known-installable #139.
-        // This is required both for an in-place update and its matching OAuth client.
-        applicationId = "nl.leeuw008.tijdbeeld.diagnose32stable"
+        // Separate package: #139 remains installed and untouched.
+        applicationId = "nl.leeuw008.tijdbeeld.authfix"
         minSdk = 24
         targetSdk = 32
-        versionCode = 2
-        versionName = "0.1.3"
+        versionCode = 1
+        versionName = "0.1.3-authfix"
     }
 
     signingConfigs {
@@ -28,8 +27,8 @@ android {
 
     buildTypes {
         getByName("debug") {
-            manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
-            // Reuse the exact cached #139 signing key so Android accepts this as an update.
+            manifestPlaceholders["appLabel"] = "AR-TijdBeeld #151"
+            // Reuse the verified #139 signing certificate; the distinct package installs side by side.
             signingConfig = signingConfigs.getByName("persistentDiagnostic")
         }
     }
