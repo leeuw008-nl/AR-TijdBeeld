@@ -159,6 +159,7 @@ class BackupActivity : Activity() {
         var total = 0L
         var manifest: JSONObject? = null
         var prefsJson: JSONObject? = null
+        val actualHashes = JSONObject()
         val seen = HashSet<String>()
         try {
             ZipInputStream(input).use { zip ->
@@ -177,11 +178,15 @@ class BackupActivity : Activity() {
                         total += bytes.size
                         check(total <= maxBackupBytes) { "Back-up is groter dan 256 MB" }
                         if (name == "manifest.json") manifest = JSONObject(String(bytes, Charsets.UTF_8))
-                        else prefsJson = JSONObject(String(bytes, Charsets.UTF_8))
+                        else {
+                            prefsJson = JSONObject(String(bytes, Charsets.UTF_8))
+                            actualHashes.put(name, sha256(bytes))
+                        }
                     } else {
                         val target = File(stage, name)
                         check(target.canonicalPath.startsWith(stage.canonicalPath + File.separator)) { "Ongeldig bestandspad" }
                         target.parentFile?.mkdirs()
+                        val digest = MessageDigest.getInstance("SHA-256")
                         target.outputStream().use { out ->
                             val buffer = ByteArray(8192)
                             while (true) {
@@ -189,17 +194,31 @@ class BackupActivity : Activity() {
                                 if (count < 0) break
                                 total += count
                                 check(total <= maxBackupBytes) { "Back-up is groter dan 256 MB" }
+                                digest.update(buffer, 0, count)
                                 out.write(buffer, 0, count)
                             }
                         }
+                        actualHashes.put(name, digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) })
                     }
                     zip.closeEntry()
                 }
             }
             val m = manifest ?: error("manifest.json ontbreekt")
             check(m.optString("format") == "tijdbeeld-local-backup") { "Dit is geen TijdBeeld-back-up" }
-            check(m.optInt("formatVersion") in 1..2) { "Niet-ondersteunde back-upversie" }
+            val formatVersion = m.optInt("formatVersion")
+            check(formatVersion in 1..3) { "Niet-ondersteunde back-upversie" }
             check(m.optString("baseline") == "build-139") { "Deze back-up hoort niet bij de build-139 gegevensindeling" }
+            if (formatVersion >= 3) {
+                val expectedHashes = m.optJSONObject("sha256") ?: error("SHA-256-controle ontbreekt")
+                check(expectedHashes.length() == actualHashes.length()) { "Back-up is onvolledig: aantal bestanden klopt niet" }
+                val keys = expectedHashes.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    check(expectedHashes.optString(key) == actualHashes.optString(key)) {
+                        "Back-upbestand beschadigd of gewijzigd: $key"
+                    }
+                }
+            }
             val savedPrefs = prefsJson ?: error("Instellingenbestand ontbreekt")
             validatePreferences(savedPrefs)
 
