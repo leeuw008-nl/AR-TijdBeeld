@@ -10,6 +10,7 @@ import android.widget.Toast
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -130,23 +131,25 @@ class BackupActivity : Activity() {
             }
             prefsJson.put(key, item)
         }
+        val hashes = JSONObject()
+        putText(zip, "shared_preferences.json", prefsJson.toString(2), hashes)
+        addDirectory(zip, filesDir, "files/", hashes)
+        databaseList().forEach { name ->
+            val db = getDatabasePath(name)
+            if (db.isFile) addFile(zip, db, "databases/${db.name}", hashes)
+            listOf(File(db.path + "-wal"), File(db.path + "-shm")).filter { it.isFile }
+                .forEach { addFile(zip, it, "databases/${it.name}", hashes) }
+        }
+        getExternalFilesDir(null)?.let { addDirectory(zip, it, "external_files/", hashes) }
         val manifest = JSONObject()
             .put("format", "tijdbeeld-local-backup")
-            .put("formatVersion", 2)
+            .put("formatVersion", 3)
             .put("baseline", "build-139")
             .put("createdAt", System.currentTimeMillis())
             .put("contents", JSONArray().put("shared_preferences.json").put("files/").put("databases/").put("external_files/"))
             .put("excludedPreferences", JSONArray().put("admin_session_token").put("admin_session_expires_at"))
-        putText(zip, "manifest.json", manifest.toString(2))
-        putText(zip, "shared_preferences.json", prefsJson.toString(2))
-        addDirectory(zip, filesDir, "files/")
-        databaseList().forEach { name ->
-            val db = getDatabasePath(name)
-            if (db.isFile) addFile(zip, db, "databases/${db.name}")
-            listOf(File(db.path + "-wal"), File(db.path + "-shm")).filter { it.isFile }
-                .forEach { addFile(zip, it, "databases/${it.name}") }
-        }
-        getExternalFilesDir(null)?.let { addDirectory(zip, it, "external_files/") }
+            .put("sha256", hashes)
+        putText(zip, "manifest.json", manifest.toString(2), JSONObject())
     }
 
     private fun restoreBackup(input: java.io.InputStream) {
