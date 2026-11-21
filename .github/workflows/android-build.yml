@@ -97,7 +97,7 @@ jobs:
             adb install -r dist/AR-TijdBeeld.apk
             adb shell monkey -p nl.leeuw008.tijdbeeld.authfix 1
             sleep 8
-            adb shell pidof nl.leeuw008.tijdbeeld.diagnose32stable
+            adb shell pidof nl.leeuw008.tijdbeeld.authfix
 
       - name: Upload verified APK
         uses: actions/upload-artifact@v4
