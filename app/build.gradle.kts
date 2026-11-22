@@ -16,19 +16,24 @@ android {
     }
 
     signingConfigs {
-        create("persistentDiagnostic") {
-            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+        create("originalRelease") {
+            val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+                ?: error("ANDROID_KEYSTORE_PATH is missing")
+            storeFile = file(keystorePath)
+            storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                ?: error("ANDROID_KEYSTORE_PASSWORD is missing")
+            keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                ?: error("ANDROID_KEY_ALIAS is missing")
+            keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                ?: error("ANDROID_KEY_PASSWORD is missing")
         }
     }
 
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
-            // Reuse one cached debug keystore so later APKs remain valid updates.
-            signingConfig = signingConfigs.getByName("persistentDiagnostic")
+            // Sign every diagnostic APK with the original keystore so it can update build 231.
+            signingConfig = signingConfigs.getByName("originalRelease")
         }
     }
 
