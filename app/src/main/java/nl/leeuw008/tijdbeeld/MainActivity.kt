@@ -91,127 +91,127 @@ class MainActivity : Activity(), SensorEventListener {
             }
         }
 
-        val root = FrameLayout(this).apply {
-            addView(glView, FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            ))
-            addView(statusLabel, FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.TOP
-            ))
-            val directionOverlay = LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                setPadding(
-                    (10 * resources.displayMetrics.density).toInt(),
-                    (6 * resources.displayMetrics.density).toInt(),
-                    (10 * resources.displayMetrics.density).toInt(),
-                    (6 * resources.displayMetrics.density).toInt()
-                )
-                setBackgroundColor(0x66000000)
-            }
-            directionArrow = TextView(this@MainActivity).apply {
-                text = "↑"
-                textSize = 48f
-                gravity = Gravity.CENTER
-                setTextColor(0xFFFFFFFF.toInt())
-                setShadowLayer(5f, 1f, 1f, 0xFF000000.toInt())
-                contentDescription = "Richting naar historische fotolocatie"
-            }
-            directionDistance = TextView(this@MainActivity).apply {
-                text = "Fotolocatie zoeken…"
-                textSize = 12f
-                gravity = Gravity.CENTER
-                setTextColor(0xFFFFFFFF.toInt())
-                setShadowLayer(4f, 1f, 1f, 0xFF000000.toInt())
-            }
-            directionOverlay.addView(directionArrow)
-            directionOverlay.addView(directionDistance)
-            addView(directionOverlay, FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            ).apply {
-                topMargin = (58 * resources.displayMetrics.density).toInt()
-            })
-            addView(Button(this@MainActivity).apply {
-                text = "‹"
-                textSize = 30f
-                minWidth = (48 * resources.displayMetrics.density).toInt()
-                minimumWidth = (48 * resources.displayMetrics.density).toInt()
-                setPadding(0, 0, 0, 0)
-                contentDescription = "Terug naar beheer"
-                setOnClickListener { finish() }
-            }, FrameLayout.LayoutParams(
-                (52 * resources.displayMetrics.density).toInt(),
-                (48 * resources.displayMetrics.density).toInt(),
-                Gravity.TOP or Gravity.START
-            ).apply {
-                leftMargin = (12 * resources.displayMetrics.density).toInt()
-                topMargin = (8 * resources.displayMetrics.density).toInt()
-            })
-            val bottomControls = LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(
-                    (10 * resources.displayMetrics.density).toInt(),
-                    (6 * resources.displayMetrics.density).toInt(),
-                    (10 * resources.displayMetrics.density).toInt(),
-                    (6 * resources.displayMetrics.density).toInt()
-                )
-                setBackgroundColor(0x99000000.toInt())
-            }
-            val widthLabel = TextView(this@MainActivity).apply {
-                text = String.format(Locale.getDefault(), "Breedte foto: %.1f m", initialImageWidthMeters)
-                textSize = 13f
-                setTextColor(0xFFFFFFFF.toInt())
-            }
-            val widthSlider = SeekBar(this@MainActivity).apply {
-                max = 110
-                progress = ((initialImageWidthMeters - 1f) * 10f).toInt().coerceIn(0, 110)
-                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                        val width = 1f + progress / 10f
-                        renderer.setImageWidthMeters(width)
-                        widthLabel.text = String.format(Locale.getDefault(), "Breedte foto: %.1f m", width)
-                        savePhotoWidth(width)
-                    }
-                    override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
-                    override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
-                })
-            }
-            val opacityLabel = TextView(this@MainActivity).apply {
-                text = "Doorzichtigheid foto: 0%"
-                textSize = 13f
-                setTextColor(0xFFFFFFFF.toInt())
-            }
-            val opacitySlider = SeekBar(this@MainActivity).apply {
-                max = 100
-                progress = 0
-                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                        renderer.setImageAlpha(1f - progress / 100f)
-                        opacityLabel.text = "Doorzichtigheid foto: ${progress}%"
-                    }
-                    override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
-                    override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
-                })
-            }
-            bottomControls.addView(widthLabel)
-            bottomControls.addView(widthSlider)
-            bottomControls.addView(opacityLabel)
-            bottomControls.addView(opacitySlider)
-            addView(bottomControls, FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.BOTTOM
-            ).apply {
-                leftMargin = (12 * resources.displayMetrics.density).toInt()
-                rightMargin = (12 * resources.displayMetrics.density).toInt()
-                bottomMargin = (12 * resources.displayMetrics.density).toInt()
+        val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).toInt()
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(0xFF174A7E.toInt())
+        }
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(4), dp(16), dp(4))
+            setBackgroundColor(0xFF1769AA.toInt())
+        }
+        header.addView(Button(this).apply {
+            text = "‹"
+            textSize = 30f
+            minWidth = dp(48)
+            minimumWidth = dp(48)
+            setPadding(0, 0, 0, 0)
+            contentDescription = "Terug"
+            setOnClickListener { finish() }
+        }, LinearLayout.LayoutParams(dp(52), dp(48)))
+        header.addView(TextView(this).apply {
+            text = "Bekijk via camera"
+            textSize = 20f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setTextColor(0xFFFFFFFF.toInt())
+            setPadding(dp(8), 0, 0, 0)
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        root.addView(header, LinearLayout.LayoutParams(-1, dp(56)))
+
+        val cameraArea = FrameLayout(this)
+        cameraArea.addView(glView, FrameLayout.LayoutParams(-1, -1))
+        cameraArea.addView(statusLabel, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.TOP
+        ))
+        val directionOverlay = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            setBackgroundColor(0x66000000)
+        }
+        directionArrow = TextView(this).apply {
+            text = "↑"
+            textSize = 48f
+            gravity = Gravity.CENTER
+            setTextColor(0xFFFFFFFF.toInt())
+            setShadowLayer(5f, 1f, 1f, 0xFF000000.toInt())
+            contentDescription = "Richting naar historische fotolocatie"
+        }
+        directionDistance = TextView(this).apply {
+            text = "Fotolocatie zoeken…"
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setTextColor(0xFFFFFFFF.toInt())
+            setShadowLayer(4f, 1f, 1f, 0xFF000000.toInt())
+        }
+        directionOverlay.addView(directionArrow)
+        directionOverlay.addView(directionDistance)
+        cameraArea.addView(directionOverlay, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        ).apply { topMargin = dp(58) })
+
+        val bottomControls = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            setBackgroundColor(0x99000000.toInt())
+        }
+        val widthLabel = TextView(this).apply {
+            text = String.format(Locale.getDefault(), "Breedte foto: %.1f m", initialImageWidthMeters)
+            textSize = 13f
+            setTextColor(0xFFFFFFFF.toInt())
+        }
+        val widthSlider = SeekBar(this).apply {
+            max = 110
+            progress = ((initialImageWidthMeters - 1f) * 10f).toInt().coerceIn(0, 110)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val width = 1f + progress / 10f
+                    renderer.setImageWidthMeters(width)
+                    widthLabel.text = String.format(Locale.getDefault(), "Breedte foto: %.1f m", width)
+                    savePhotoWidth(width)
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
             })
         }
+        val opacityLabel = TextView(this).apply {
+            text = "Doorzichtigheid foto: 0%"
+            textSize = 13f
+            setTextColor(0xFFFFFFFF.toInt())
+        }
+        val opacitySlider = SeekBar(this).apply {
+            max = 100
+            progress = 0
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    renderer.setImageAlpha(1f - progress / 100f)
+                    opacityLabel.text = "Doorzichtigheid foto: ${progress}%"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        bottomControls.addView(widthLabel)
+        bottomControls.addView(widthSlider)
+        bottomControls.addView(opacityLabel)
+        bottomControls.addView(opacitySlider)
+        cameraArea.addView(bottomControls, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM
+        ).apply {
+            leftMargin = dp(12)
+            rightMargin = dp(12)
+            bottomMargin = dp(12)
+        })
+        root.addView(cameraArea, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
 
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
