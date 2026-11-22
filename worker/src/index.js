@@ -1,6 +1,7 @@
 const LOGIN_WINDOW_SECONDS = 15 * 60;
 const MAX_LOGIN_ATTEMPTS = 10;
 const RESET_TTL_SECONDS = 15 * 60;
+const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 const RESEND_API_URL = "https://api.resend.com/emails";
 const RESET_FROM = "TijdBeeld <noreply@tijdbeeld.leeuw008.nl>";
 const LEGACY_CATALOG_URL =
@@ -100,6 +101,11 @@ async function getSession(request, env) {
   const key = "session:" + await sha256Hex(match[1]);
   const session = await env.SESSIONS.get(key, "json");
   if (!session || session.email !== env.ADMIN_EMAIL) return null;
+  // Accept existing legacy tokens once; keep-session upgrades them to a renewable TTL.
+  if (Number.isFinite(session.expiresAt) && session.expiresAt <= Date.now()) {
+    await env.SESSIONS.delete(key);
+    return null;
+  }
   return { key, session };
 }
 
@@ -185,12 +191,14 @@ async function handle(request, env) {
       const tokenKey = "session:" + await sha256Hex(token);
       diagnosticStage = "write-session";
       // Keep the administrator session valid until explicit logout or password reset.
+      const expiresAt = Date.now() + SESSION_TTL_SECONDS * 1000;
       await env.SESSIONS.put(tokenKey, JSON.stringify({
         email: env.ADMIN_EMAIL,
         createdAt: new Date().toISOString(),
-      }));
+        expiresAt,
+      }), { expirationTtl: SESSION_TTL_SECONDS });
       diagnosticStage = "complete";
-      return json({ success: true, token, expiresIn: 0 });
+      return json({ success: true, token, expiresIn: SESSION_TTL_SECONDS });
     } catch (error) {
       console.error("TijdBeeld login diagnostic", {
         stage: diagnosticStage,
@@ -316,9 +324,10 @@ async function handle(request, env) {
   if (url.pathname === "/auth/keep-session" && request.method === "POST") {
     const current = await getSession(request, env);
     if (!current) return json({ error: "Je sessie is verlopen. Log opnieuw in." }, 401);
-    // No KV expiration is set: the session remains valid until explicit logout or password reset.
-    await env.SESSIONS.put(current.key, JSON.stringify(current.session));
-    return json({ success: true, persistent: true, expiresIn: 0 });
+    // Sliding 30-day session; each successful keep-alive renews the server-side TTL.
+    const renewed = { ...current.session, expiresAt: Date.now() + SESSION_TTL_SECONDS * 1000 };
+    await env.SESSIONS.put(current.key, JSON.stringify(renewed), { expirationTtl: SESSION_TTL_SECONDS });
+    return json({ success: true, persistent: false, expiresIn: SESSION_TTL_SECONDS });
   }
 
   if (url.pathname === "/auth/logout" && request.method === "POST") {
