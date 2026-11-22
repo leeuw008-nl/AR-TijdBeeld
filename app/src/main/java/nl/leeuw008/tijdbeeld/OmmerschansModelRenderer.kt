@@ -36,6 +36,9 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     private val standaloneModel = FloatArray(16)
     private val standaloneRotation = FloatArray(16)
     private val standaloneRotatedModel = FloatArray(16)
+    private val standaloneTranslation = FloatArray(16)
+    @Volatile private var standaloneOffsetX = 0f
+    @Volatile private var standaloneOffsetY = 0f
     @Volatile private var standaloneRotationX = 0f
     @Volatile private var standaloneRotationY = 0f
     @Volatile private var standaloneCameraDistance = 7.5f
@@ -106,7 +109,17 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     fun setDisplayRotation(rotation: Int) { displayRotation = rotation; geometryChanged = true }
 
     fun setZoomSensitivity(value: Float) {
-        if (standaloneMode && value.isFinite()) standaloneZoomSensitivity = value.coerceIn(0f, 1f)
+        if (standaloneMode && value.isFinite()) standaloneZoomSensitivity = value.coerceIn(0f, 5f)
+    }
+
+    /** Move the model in the viewing plane with a two-finger drag. */
+    fun panStandalone(deltaX: Float, deltaY: Float, viewportWidth: Int, viewportHeight: Int) {
+        if (!standaloneMode || !deltaX.isFinite() || !deltaY.isFinite()) return
+        val viewport = minOf(viewportWidth, viewportHeight).coerceAtLeast(1).toFloat()
+        val sensitivity = 0.15f + standaloneZoomSensitivity * 1.70f
+        val worldPerPixel = standaloneCameraDistance / viewport * 0.35f * sensitivity
+        standaloneOffsetX += deltaX * worldPerPixel
+        standaloneOffsetY -= deltaY * worldPerPixel
     }
 
     fun rotateStandalone(deltaX: Float, deltaY: Float) {
@@ -259,8 +272,10 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         Matrix.setLookAtM(view, 0, 0f, standaloneCameraDistance * 0.24f, standaloneCameraDistance, 0f, 0f, 0f, 0f, 1f, 0f)
         Matrix.setRotateM(standaloneRotation, 0, standaloneRotationX, 1f, 0f, 0f)
         Matrix.rotateM(standaloneRotation, 0, standaloneRotationY, 0f, 1f, 0f)
-        Matrix.multiplyMM(standaloneRotatedModel, 0, standaloneRotation, 0, standaloneModel, 0)
-        Matrix.multiplyMM(mv, 0, view, 0, standaloneRotatedModel, 0)
+        Matrix.setIdentityM(standaloneTranslation, 0)
+        Matrix.translateM(standaloneTranslation, 0, standaloneOffsetX, standaloneOffsetY, 0f)
+        Matrix.multiplyMM(standaloneRotatedModel, 0, standaloneTranslation, 0, standaloneRotation, 0)
+        Matrix.multiplyMM(mv, 0, standaloneRotatedModel, 0, standaloneModel, 0)
         Matrix.multiplyMM(mvp, 0, projection, 0, mv, 0)
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
         GLES20.glEnable(GLES20.GL_CULL_FACE)
