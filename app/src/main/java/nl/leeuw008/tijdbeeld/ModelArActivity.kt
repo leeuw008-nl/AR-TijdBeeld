@@ -8,12 +8,8 @@ import android.opengl.GLSurfaceView
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.View
-import android.os.Handler
-import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
-import android.view.View
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.SeekBar
@@ -83,14 +79,6 @@ class ModelArActivity : Activity() {
             renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
         }
         if (standalonePreview) {
-            var controlsView: LinearLayout? = null
-            val uiHandler = Handler(Looper.getMainLooper())
-            val hideControls = Runnable { controlsView?.visibility = View.GONE }
-            fun revealControls() {
-                controlsView?.visibility = View.VISIBLE
-                uiHandler.removeCallbacks(hideControls)
-                uiHandler.postDelayed(hideControls, 3000L)
-            }
             var previousX = 0f
             var previousY = 0f
             var previousSpan = 0f
@@ -104,10 +92,9 @@ class ModelArActivity : Activity() {
                 return kotlin.math.sqrt(dx * dx + dy * dy)
             }
             glView.setOnTouchListener { _, event ->
-                revealControls()
+                showSensitivityControls()
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
-                        showSensitivityControls()
                         previousX = event.x
                         previousY = event.y
                         previousSpan = 0f
@@ -193,7 +180,7 @@ class ModelArActivity : Activity() {
             }
             val sensitivitySlider = SeekBar(this).apply {
                 max = 500
-                progress = 50
+                progress = 100
                 setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                         renderer.setZoomSensitivity(progress / 100f)
