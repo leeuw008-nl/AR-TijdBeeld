@@ -212,7 +212,7 @@ class ModelArActivity : Activity() {
                     }
                     override fun onStopTrackingTouch(seekBar: SeekBar?) {
                         uiHandler.removeCallbacks(hideSensitivityControls)
-                        uiHandler.postDelayed(hideSensitivityControls, 3000L)
+                        uiHandler.postDelayed(hideSensitivityControls, 2000L)
                     }
                 })
             }
@@ -229,7 +229,7 @@ class ModelArActivity : Activity() {
                     showSensitivityControls()
                     if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
                         uiHandler.removeCallbacks(hideSensitivityControls)
-                        uiHandler.postDelayed(hideSensitivityControls, 3000L)
+                        uiHandler.postDelayed(hideSensitivityControls, 2000L)
                     }
                     false
                 }
