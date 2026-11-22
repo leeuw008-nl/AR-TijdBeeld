@@ -66,17 +66,17 @@ class BackupActivity : Activity() {
             setTextColor(0xFF1769AA.toInt())
             setPadding(0, 0, 0, dp(16))
         })
-        root.addView(TextView(this).apply {
+        page.addView(TextView(this).apply {
             text = "Een back-up bevat de lokale instellingen en fotogegevens, interne bestanden en databases. Beheersessies worden bewust niet meegenomen. Herstellen vervangt de overeenkomstige lokale gegevens door de inhoud van de gekozen back-up."
             textSize = 16f
             setTextColor(0xFF263746.toInt())
             setPadding(0, 0, 0, 24)
         })
-        root.addView(Button(this).apply {
+        page.addView(Button(this).apply {
             text = "Back-up exporteren"
             setOnClickListener { createBackup() }
         }, LinearLayout.LayoutParams(-1, -2))
-        root.addView(Button(this).apply {
+        page.addView(Button(this).apply {
             text = "Back-up importeren en herstellen"
             setOnClickListener { chooseBackup() }
         }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 12 })
@@ -84,7 +84,9 @@ class BackupActivity : Activity() {
         setContentView(root)
     }
 
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()\n\n    private fun createBackup() {
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
+
+    private fun createBackup() {
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "application/zip"
