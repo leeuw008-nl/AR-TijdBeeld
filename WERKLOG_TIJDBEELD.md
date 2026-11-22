@@ -19,17 +19,21 @@ Dit bestand is het vaste projectlogboek. Raadpleeg het vóór iedere nieuwe werk
   - `ARCORE_API_KEY`
   - `CLOUDFLARE_API_TOKEN`
 - Deel of vraag nooit om de waarden van secrets in chat.
-- Build 231 (commit `c3cc4ff90298469986515cfb870b4910ec552772`) was ondertekend met certificaat SHA-1:
+- Build 146, 147 en 148 lazen de bestaande keystore uit de secrets en hadden allemaal certificaat SHA-1:
+  `1ce60a1673fa7b5a1f5ee3d7c6de426007806d3a`
+- Build 231 (commit `c3cc4ff90298469986515cfb870b4910ec552772`) was ondertekend met een andere certificaat SHA-1:
   `2459666eaa0479748efd255bcb705a488c8caeca`
-- De private signing key kan niet uit een APK worden teruggewonnen. De bestaande `ANDROID_KEYSTORE_BASE64` is de aangewezen bron om de oorspronkelijke signing key terug te gebruiken.
-- Build 239 gebruikte per ongeluk een nieuwe diagnostische debug-keystore (SHA-1 `3ab19be147dc97b092b3f57b146bb514992efb9e`), dus die APK mag niet over build 231 worden geïnstalleerd.
+- Conclusie: de huidige `ANDROID_KEYSTORE_BASE64` is de sleutel van builds 146–148, niet van build 231. Deze bestaande keystore kan build 231 dus niet bijwerken.
+- De build231-sleutel is in die workflow-run nieuw gegenereerd; de private sleutel is niet in de APK opgenomen. Er is geen bevestiging dat die private sleutel elders is bewaard. Zonder de oorspronkelijke private sleutel kan Android build 231 niet in-place worden bijgewerkt door een anders ondertekende APK.
+- Build 239 gebruikte opnieuw een nieuwe diagnostische debug-keystore (SHA-1 `3ab19be147dc97b092b3f57b146bb514992efb9e`), dus die APK mag niet over build 231 worden geïnstalleerd.
 - Build 239 compileerde succesvol en leverde een APK-artifact op; de emulator-installatietest faalde tijdens ADB/emulatorstart en bewees dus geen update-compatibiliteit.
-- Op 22 november 2026 zijn de bestanden `app/build.gradle.kts` en `.github/workflows/android-build.yml` aangepast om de bestaande keystore te decoderen en te gebruiken. De workflow controleert vooraf of de SHA-1 exact overeenkomt met build 231; bij afwijking stopt de workflow vóór het maken van een APK.
-- Nieuwe commits:
+- Op 22 november 2026 zijn `app/build.gradle.kts` en `.github/workflows/android-build.yml` aangepast om de bestaande secret-keystore te decoderen en te gebruiken. De workflow controleert SHA-1 tegen build 231 en stopt veilig bij verschil.
+- Build 241 (`45046867134`) bevestigde dat de secret-keystore SHA-1 `1ce60a1673fa7b5a1f5ee3d7c6de426007806d3a` heeft. De workflow stopte terecht vóór compilatie omdat dit niet overeenkomt met build 231.
+- Signing-correctiecommits:
   - `6a60d5347dec736241ceee6d2b2b5c6635d400a9` — Gradle signing-config
-  - `1afeeb0c01f7de7b55a14fe923fb530c8063326d` — workflow gebruikt originele keystore
-- Eerstvolgende controle: bekijk de nieuwe Android build-run. Vereist: SHA-1-check slaagt en APK-certificaat SHA-1 is exact `2459666eaa0479748efd255bcb705a488c8caeca`. Pas daarna mag de APK als update voor build 231 worden aangeboden.
-- Als SHA-1 klopt maar emulator-test faalt, onderscheid dan emulator/ADB-probleem van een echte signature mismatch. Geen herinstallatie adviseren voordat dit is vastgesteld.
+  - `1afeeb0c01f7de7b55a14fe923fb530c8063326d` — workflow gebruikt bestaande secret-keystore
+- Veilig vervolg: óf de echte oorspronkelijke build231-keystore terugvinden (als die nog ergens als JKS/keystore-bestand bestaat), óf een eenmalige schone installatie voorbereiden met backup/export van appgegevens, verwijderen van build 231 en installatie van een build die met de bestaande secret-keystore is ondertekend. Laat de gebruiker niet build 239 of een andere afwijkend ondertekende APK over build 231 installeren.
+- Als een nieuwe APK wordt gebouwd met de bestaande secrets, controleer dat de APK SHA-1 exact `1ce60a1673fa7b5a1f5ee3d7c6de426007806d3a` is en label hem niet als update voor build 231.
 
 ## App-wijzigingen in recente werkbranch
 Laatste inhoudelijke wijzigingscommit vóór de signing-correctie:
@@ -38,7 +42,7 @@ Laatste inhoudelijke wijzigingscommit vóór de signing-correctie:
 - Ommerschans-foto wordt onderaan de fotolijst geplaatst; overige foto's op afstand gesorteerd als locatie beschikbaar is.
 - Beheer-sessie wordt bij terugkeer naar Beheer opnieuw gevalideerd/ververst; lokale vervaldatum wordt 30 dagen vooruit gezet.
 - 3D-preview heeft schermknoppen voor draaien, zoomen en reset; toetsenbord WASD/pijltjes en plus/min; touch-draaien, pinch-zoom en pannen blijven behouden.
-- Deze functies moeten in de nieuwe build opnieuw worden gecontroleerd.
+- Deze functies moeten in een nieuwe build opnieuw worden gecontroleerd.
 
 ## Werkwijze / communicatie
 - Controleer dit werklogboek vóór vragen stellen of wijzigingen uitvoeren.
