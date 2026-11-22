@@ -43,6 +43,9 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     @Volatile private var standaloneRotationY = 0f
     @Volatile private var standaloneCameraDistance = 7.5f
     @Volatile private var standaloneZoomSensitivity = 1.0f
+    @Volatile private var standalonePivotXPercent = 50
+    @Volatile private var standalonePivotYPercent = 50
+    @Volatile private var standalonePivotZPercent = 50
     private var cameraTexture = 0
     private var cameraProgram = 0
     private var modelProgram = 0
@@ -130,6 +133,14 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         val dragScale = 0.045f * zoomDamping * userSensitivity
         standaloneRotationY = (standaloneRotationY + deltaX * dragScale) % 360f
         standaloneRotationX = (standaloneRotationX - deltaY * dragScale).coerceIn(-75f, 75f)
+    }
+
+    fun setStandalonePivot(xPercent: Int, yPercent: Int, zPercent: Int) {
+        if (!standaloneMode) return
+        standalonePivotXPercent = xPercent.coerceIn(0, 100)
+        standalonePivotYPercent = yPercent.coerceIn(0, 100)
+        standalonePivotZPercent = zPercent.coerceIn(0, 100)
+        standaloneTransformReady = false
     }
 
     fun stepOrbitStandalone(yawDegrees: Float, pitchDegrees: Float) {
@@ -277,7 +288,11 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             val scale = 2.8f / extent
             Matrix.setIdentityM(standaloneModel, 0)
             Matrix.scaleM(standaloneModel, 0, scale, scale, scale)
-            Matrix.translateM(standaloneModel, 0, -(minX + maxX) / 2f, -(minY + maxY) / 2f, -(minZ + maxZ) / 2f)
+            // 50% on all axes keeps the original bounding-box centre as pivot.
+            val pivotX = minX + (maxX - minX) * (standalonePivotXPercent / 100f)
+            val pivotY = minY + (maxY - minY) * (standalonePivotYPercent / 100f)
+            val pivotZ = minZ + (maxZ - minZ) * (standalonePivotZPercent / 100f)
+            Matrix.translateM(standaloneModel, 0, -pivotX, -pivotY, -pivotZ)
             standaloneTransformReady = true
             report("3D-model geladen — vrij bekijken")
         }
