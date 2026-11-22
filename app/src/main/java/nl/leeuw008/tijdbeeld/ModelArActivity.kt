@@ -33,24 +33,32 @@ class ModelArActivity : Activity() {
     private var installRequested = false
     private var permissionRequested = false
     private lateinit var sensitivityControls: LinearLayout
+    private lateinit var modelControls: LinearLayout
     private var pivotXProgress = 50
     private var pivotYProgress = 50
     private var pivotZProgress = 50
     private val uiHandler = Handler(Looper.getMainLooper())
     private val hideSensitivityControls = Runnable {
         if (::sensitivityControls.isInitialized) {
-            sensitivityControls.animate().alpha(0f).setDuration(180).withEndAction {
+            sensitivityControls.animate().alpha(0f).setDuration(160).withEndAction {
                 sensitivityControls.visibility = View.GONE
+            }.start()
+        }
+        if (::modelControls.isInitialized) {
+            modelControls.animate().alpha(0f).setDuration(160).withEndAction {
+                modelControls.visibility = View.GONE
             }.start()
         }
     }
 
     private fun showSensitivityControls() {
-        if (!::sensitivityControls.isInitialized) return
+        if (!::sensitivityControls.isInitialized || !::modelControls.isInitialized) return
         uiHandler.removeCallbacks(hideSensitivityControls)
         sensitivityControls.visibility = View.VISIBLE
-        sensitivityControls.animate().alpha(1f).setDuration(120).start()
-        uiHandler.postDelayed(hideSensitivityControls, 3000L)
+        modelControls.visibility = View.VISIBLE
+        sensitivityControls.animate().alpha(1f).setDuration(100).start()
+        modelControls.animate().alpha(1f).setDuration(100).start()
+        uiHandler.postDelayed(hideSensitivityControls, 2000L)
     }
     private val standalonePreview: Boolean by lazy { intent.getBooleanExtra("standalone_preview", false) }
     private val photoTitle: String by lazy {
@@ -153,7 +161,7 @@ class ModelArActivity : Activity() {
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                         previousSpan = 0f
                         uiHandler.removeCallbacks(hideSensitivityControls)
-                        uiHandler.postDelayed(hideSensitivityControls, 3000L)
+                        uiHandler.postDelayed(hideSensitivityControls, 2000L)
                         true
                     }
                     else -> true
@@ -244,11 +252,13 @@ class ModelArActivity : Activity() {
                         showSensitivityControls()
                     }
                 }
-            val controlPanel = LinearLayout(this).apply {
+            modelControls = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 setPadding(dp(6), dp(5), dp(6), dp(5))
                 setBackgroundColor(0x66000000)
+                visibility = View.GONE
+                alpha = 0f
             }
             val orbitRow = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -264,7 +274,7 @@ class ModelArActivity : Activity() {
                     leftMargin = dp(3); rightMargin = dp(3); bottomMargin = dp(4)
                 })
             }
-            controlPanel.addView(orbitRow)
+            modelControls.addView(orbitRow)
             val zoomRow = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
@@ -276,13 +286,13 @@ class ModelArActivity : Activity() {
             }, LinearLayout.LayoutParams(dp(92), dp(38)).apply { leftMargin = dp(4); rightMargin = dp(4) })
             zoomRow.addView(controlButton("+", { renderer.zoomStandalone(1.25f) }),
                 LinearLayout.LayoutParams(dp(56), dp(38)).apply { leftMargin = dp(4) })
-            controlPanel.addView(zoomRow)
-            controlPanel.addView(controlButton("Draaipunt verplaatsen") {
+            modelControls.addView(zoomRow)
+            modelControls.addView(controlButton("Draaipunt verplaatsen") {
                 showPivotDialog()
             }, LinearLayout.LayoutParams(dp(220), dp(38)).apply {
                 topMargin = dp(5)
             })
-            root.addView(controlPanel, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+            root.addView(modelControls, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
                 bottomMargin = dp(10)
             })
         }
