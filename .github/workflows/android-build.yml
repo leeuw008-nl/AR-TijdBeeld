@@ -34,6 +34,7 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: tijdbeeld-diagnostic-signing-key-v1
+          save-always: true
 
       - name: Create diagnostic signing key on first build
         run: |
