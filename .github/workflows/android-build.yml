@@ -46,12 +46,6 @@ jobs:
           fi
           test -s ~/.android/debug.keystore
 
-      - name: Save persistent diagnostic signing key
-        uses: actions/cache/save@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: tijdbeeld-diagnostic-signing-key-v2
-
       - name: Verify exact build 239 signing certificate
         run: |
           set -euo pipefail
@@ -59,6 +53,13 @@ jobs:
           EXPECTED_SHA1="3ab19be147dc97b092b3f57b146bb514992efb9e"
           echo "Build 239 signing certificate SHA-1: $ACTUAL_SHA1"
           test "$ACTUAL_SHA1" = "$EXPECTED_SHA1" || { echo "::error::Signing key differs from build 239; refusing to create a non-updatable APK."; exit 1; }
+
+      - name: Save persistent diagnostic signing key
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: tijdbeeld-diagnostic-signing-key-v2
+
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
