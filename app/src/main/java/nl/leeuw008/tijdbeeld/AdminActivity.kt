@@ -126,7 +126,7 @@ class AdminActivity : Activity() {
                 connection?.disconnect()
             }
             if (status == 401) {
-                prefs.edit().remove("admin_session_token").remove("admin_session_expires_at").commit()
+                prefs.edit().remove("admin_session_token").remove("admin_session_expires_at").remove("admin_session_last_refresh_at").commit()
                 runOnUiThread {
                     Toast.makeText(this, "De beheersessie is ingetrokken. Log opnieuw in.", Toast.LENGTH_LONG).show()
                     startActivity(Intent(this, AdminLoginActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
@@ -134,12 +134,13 @@ class AdminActivity : Activity() {
                 }
             } else if (status in 200..299) {
                 val response = runCatching { JSONObject(responseBody) }.getOrNull()
-                val persistent = response?.optBoolean("persistent", false) == true
                 val expiresIn = response?.optLong("expiresIn", 0L) ?: 0L
-                prefs.edit().putLong(
-                    "admin_session_expires_at",
-                    if (persistent || expiresIn <= 0L) System.currentTimeMillis() + 30L * 24L * 60L * 60L * 1000L else System.currentTimeMillis() + expiresIn * 1000L
-                ).apply()
+                val now = System.currentTimeMillis()
+                val durationMs = (expiresIn.takeIf { it > 0L } ?: 30L * 24L * 60L * 60L) * 1000L
+                prefs.edit()
+                    .putLong("admin_session_expires_at", now + durationMs)
+                    .putLong("admin_session_last_refresh_at", now)
+                    .apply()
             }
         }.start()
     }
@@ -966,7 +967,7 @@ class AdminActivity : Activity() {
                             .apply()
                         Toast.makeText(this, "Catalogus is openbaar bijgewerkt.", Toast.LENGTH_LONG).show()
                     } else if (status == 401) {
-                        prefs.edit().remove("admin_session_token").remove("admin_session_expires_at").apply()
+                        prefs.edit().remove("admin_session_token").remove("admin_session_expires_at").remove("admin_session_last_refresh_at").apply()
                         val message = if (localTestMode) {
                             "De startpaginafoto is op dit toestel opgeslagen, maar niet openbaar gepubliceerd. Log opnieuw in om te publiceren."
                         } else {
