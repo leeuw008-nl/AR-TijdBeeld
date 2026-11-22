@@ -138,7 +138,7 @@ class AdminActivity : Activity() {
                 val expiresIn = response?.optLong("expiresIn", 0L) ?: 0L
                 prefs.edit().putLong(
                     "admin_session_expires_at",
-                    if (persistent || expiresIn <= 0L) System.currentTimeMillis() + 30L * 24L * 60L * 60L * 1000L else System.currentTimeMillis() + expiresIn * 1000L
+                    if (persistent || expiresIn <= 0L) System.currentTimeMillis() + 365L * 24L * 60L * 60L * 1000L else System.currentTimeMillis() + expiresIn * 1000L
                 ).apply()
             }
         }.start()
