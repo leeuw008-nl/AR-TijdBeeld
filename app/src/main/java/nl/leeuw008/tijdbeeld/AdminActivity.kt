@@ -34,7 +34,14 @@ data class PhotoConfig(
     var source: String = "",
     var sourceId: String = "",
     var published: Boolean = false,
-    var imageHeightMeters: Float = 1.65f
+    var imageHeightMeters: Float = 1.65f,
+    var objectType: String = "PHOTO",
+    var modelUrl: String = "",
+    var modelAsset: String = "",
+    var testLat: Double = Double.NaN,
+    var testLng: Double = Double.NaN,
+    var displayLocation: String = "OBJECT",
+    var modelScale: Float = 1f
 ) {
     fun caption() = title
 }
@@ -51,6 +58,12 @@ class AdminActivity : Activity() {
     private lateinit var cameraLatInput: EditText
     private lateinit var cameraLngInput: EditText
     private lateinit var publishCheckbox: CheckBox
+    private lateinit var objectTypeSelector: Spinner
+    private lateinit var testLocationSelector: Spinner
+    private lateinit var testLatInput: EditText
+    private lateinit var testLngInput: EditText
+    private lateinit var cameraFieldsContainer: LinearLayout
+    private lateinit var testFieldsContainer: LinearLayout
     private lateinit var map: WebView
     private var adminScreenView: View? = null
     private var mapScreenActive = false
@@ -206,7 +219,10 @@ class AdminActivity : Activity() {
                         o.optDouble("imageWidthMeters", 3.0).toFloat().coerceIn(1f, 12f),
                         o.optString("id").ifBlank { UUID.randomUUID().toString() },
                         o.optString("source"), o.optString("sourceId"), o.optBoolean("published", false),
-                        o.optDouble("imageHeightMeters", 1.65).toFloat().coerceIn(1f, 3f)
+                        o.optDouble("imageHeightMeters", 1.65).toFloat().coerceIn(1f, 3f),
+                        o.optString("type", "PHOTO").uppercase(Locale.ROOT), o.optString("modelUrl"), o.optString("modelAsset"),
+                        o.optDouble("testLat", Double.NaN), o.optDouble("testLng", Double.NaN),
+                        o.optString("displayLocation", "OBJECT"), o.optDouble("modelScale", 1.0).toFloat().coerceIn(0.01f, 100f)
                     ))
                 }
             } catch (_: Exception) {
@@ -276,7 +292,10 @@ class AdminActivity : Activity() {
                     o.optDouble("imageWidthMeters", 3.0).toFloat().coerceIn(1f, 12f),
                     o.optString("id").ifBlank { UUID.randomUUID().toString() },
                     o.optString("source"), o.optString("sourceId"), true,
-                    o.optDouble("imageHeightMeters", 1.65).toFloat().coerceIn(1f, 3f)
+                    o.optDouble("imageHeightMeters", 1.65).toFloat().coerceIn(1f, 3f),
+                    o.optString("type", "PHOTO").uppercase(Locale.ROOT), o.optString("modelUrl"), o.optString("modelAsset"),
+                    o.optDouble("testLat", Double.NaN), o.optDouble("testLng", Double.NaN),
+                    o.optString("displayLocation", "OBJECT"), o.optDouble("modelScale", 1.0).toFloat().coerceIn(0.01f, 100f)
                 ))
             }
             if (remotePhotos.isEmpty()) return
@@ -738,11 +757,14 @@ class AdminActivity : Activity() {
         val p = photos[selected]
         p.title = titleInput.text.toString().trim()
         modelPreviewButton?.visibility = if (p.title == OMMERSCHANS_PHOTO_TITLE) View.VISIBLE else View.GONE
-        p.imageUrl = urlInput.text.toString().trim()
+        val mediaUrl = urlInput.text.toString().trim()
+        if (p.objectType == "MODEL") p.modelUrl = mediaUrl else p.imageUrl = mediaUrl
         p.objectLat = objectLatInput.numberOr(p.objectLat)
         p.objectLng = objectLngInput.numberOr(p.objectLng)
         p.cameraLat = cameraLatInput.numberOr(p.cameraLat)
         p.cameraLng = cameraLngInput.numberOr(p.cameraLng)
+        p.testLat = if (::testLatInput.isInitialized) testLatInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN else p.testLat
+        p.testLng = if (::testLngInput.isInitialized) testLngInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN else p.testLng
         saveAll()
     }
 
@@ -880,6 +902,10 @@ class AdminActivity : Activity() {
                 .put("cameraLat", p.cameraLat).put("cameraLng", p.cameraLng)
                 .put("imageWidthMeters", p.imageWidthMeters.toDouble())
                 .put("imageHeightMeters", p.imageHeightMeters.toDouble())
+                .put("type", p.objectType).put("modelUrl", p.modelUrl).put("modelAsset", p.modelAsset)
+                .put("testLat", if (p.testLat.isFinite()) p.testLat else JSONObject.NULL)
+                .put("testLng", if (p.testLng.isFinite()) p.testLng else JSONObject.NULL)
+                .put("displayLocation", p.displayLocation).put("modelScale", p.modelScale.toDouble())
                 .put("published", p.published))
         }
         val newJson = array.toString()
@@ -915,7 +941,8 @@ class AdminActivity : Activity() {
             return
         }
         saveCurrent()
-        val publishablePhotos = photos.filter { it.published && it.title.isNotBlank() && it.imageUrl.startsWith("https://") }
+        val publishablePhotos = photos.filter { item -> item.published && item.title.isNotBlank() &&
+            (if (item.objectType == "MODEL") item.modelUrl.startsWith("https://") || item.modelAsset.isNotBlank() else item.imageUrl.startsWith("https://")) }
         if (publishablePhotos.isEmpty()) {
             Toast.makeText(this,
                 "Er is geen geldige foto geselecteerd voor openbare publicatie. De bestaande openbare foto's blijven behouden.",
@@ -924,7 +951,7 @@ class AdminActivity : Activity() {
         }
         val publicFeaturedPhotoId = featuredPhotoId.takeIf { id -> publishablePhotos.any { it.id == id } }
             ?: publishablePhotos.firstOrNull()?.id.orEmpty()
-        val payload = JSONObject().put("schemaVersion", 1).put("featuredPhotoId", publicFeaturedPhotoId).put("photos", JSONArray().also { array ->
+        val payload = JSONObject().put("schemaVersion", 2).put("featuredPhotoId", publicFeaturedPhotoId).put("photos", JSONArray().also { array ->
             publishablePhotos.forEach { p ->
                 array.put(JSONObject()
                     .put("id", p.id)
@@ -937,7 +964,11 @@ class AdminActivity : Activity() {
                     .put("cameraLat", p.cameraLat)
                     .put("cameraLng", p.cameraLng)
                     .put("imageWidthMeters", p.imageWidthMeters.toDouble())
-                    .put("imageHeightMeters", p.imageHeightMeters.toDouble()))
+                    .put("imageHeightMeters", p.imageHeightMeters.toDouble())
+                    .put("type", p.objectType).put("modelUrl", p.modelUrl).put("modelAsset", p.modelAsset)
+                    .put("testLat", if (p.testLat.isFinite()) p.testLat else JSONObject.NULL)
+                    .put("testLng", if (p.testLng.isFinite()) p.testLng else JSONObject.NULL)
+                    .put("displayLocation", p.displayLocation).put("modelScale", p.modelScale.toDouble()))
             }
         })
         Toast.makeText(this, "Catalogus wordt gepubliceerd…", Toast.LENGTH_SHORT).show()
