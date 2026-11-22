@@ -13,6 +13,9 @@ android {
         targetSdk = 32
         versionCode = 4
         versionName = "0.1.4"
+        // Required for ARCore Geospatial API authorization.
+        manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
+        manifestPlaceholders["arcoreApiKey"] = System.getenv("ARCORE_API_KEY") ?: ""
     }
 
     signingConfigs {
