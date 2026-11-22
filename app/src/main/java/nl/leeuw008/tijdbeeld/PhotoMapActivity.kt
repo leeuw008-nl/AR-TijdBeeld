@@ -57,12 +57,6 @@ class PhotoMapActivity : Activity() {
             setOnClickListener { finish() }
         }, LinearLayout.LayoutParams(dp(48), dp(48)))
         header.addView(TextView(this).apply {
-            text = "v" + (packageManager.getPackageInfo(packageName, 0).versionName ?: "?")
-            textSize = 13f
-            setTextColor(Color.WHITE)
-            contentDescription = "App-versie"
-        })
-        header.addView(TextView(this).apply {
             text = "AR-TijdBeeld"
             textSize = 21f
             setTypeface(null, android.graphics.Typeface.BOLD)

@@ -62,13 +62,6 @@ class AdminLoginActivity : Activity() {
             setTypeface(null, android.graphics.Typeface.BOLD)
             setTextColor(0xFFFFFFFF.toInt())
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(TextView(this).apply {
-            val version = packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
-            text = "v$version"
-            textSize = 12f
-            setTextColor(0xFFFFFFFF.toInt())
-            contentDescription = "App-versie $version"
-        })
         root.addView(header, LinearLayout.LayoutParams(-1, -2))
         val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -253,7 +246,7 @@ class AdminLoginActivity : Activity() {
                         val sessionSaved = prefs.edit()
                             .putString("admin_email", email)
                             .putString("admin_session_token", token)
-                            .putLong("admin_session_expires_at", System.currentTimeMillis() + 7L * 24L * 60L * 60L * 1000L) // Eerste servercontrole na zeven dagen; server bewaart de sessie zonder KV-vervaldatum.
+                            .putLong("admin_session_expires_at", System.currentTimeMillis() + 30L * 24L * 60L * 60L * 1000L) // Lokale sessiecontrole na 30 dagen; server bewaart de token zonder KV-vervaldatum.
                             .commit()
                         if (sessionSaved) {
                             passwordInput.text.clear()

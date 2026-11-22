@@ -30,11 +30,10 @@ jobs:
           java-version: 17
 
       - name: Restore persistent diagnostic signing key
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ~/.android/debug.keystore
-          key: tijdbeeld-diagnostic-signing-key-v1
-          save-always: true
+          key: tijdbeeld-diagnostic-signing-key-v2
 
       - name: Create diagnostic signing key on first build
         run: |
@@ -47,6 +46,11 @@ jobs:
           fi
           test -s ~/.android/debug.keystore
 
+      - name: Save persistent diagnostic signing key
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: tijdbeeld-diagnostic-signing-key-v2
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4

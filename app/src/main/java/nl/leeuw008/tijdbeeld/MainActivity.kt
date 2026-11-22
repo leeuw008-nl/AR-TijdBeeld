@@ -152,21 +152,6 @@ class MainActivity : Activity(), SensorEventListener {
                 leftMargin = (12 * resources.displayMetrics.density).toInt()
                 topMargin = (8 * resources.displayMetrics.density).toInt()
             })
-            addView(TextView(this@MainActivity).apply {
-                val version = packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
-                text = "v$version"
-                textSize = 12f
-                setTextColor(0xFFFFFFFF.toInt())
-                setShadowLayer(4f, 1f, 1f, 0xFF000000.toInt())
-                contentDescription = "App-versie $version"
-            }, FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.TOP or Gravity.END
-            ).apply {
-                rightMargin = (14 * resources.displayMetrics.density).toInt()
-                topMargin = (18 * resources.displayMetrics.density).toInt()
-            })
             val bottomControls = LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(

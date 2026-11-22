@@ -88,13 +88,6 @@ class PhotoOverviewActivity : Activity() {
             setTypeface(null, android.graphics.Typeface.BOLD)
             setTextColor(0xFFFFFFFF.toInt())
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(TextView(this).apply {
-            val version = packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
-            text = "v$version"
-            textSize = 12f
-            setTextColor(0xFFFFFFFF.toInt())
-            contentDescription = "App-versie $version"
-        }, LinearLayout.LayoutParams(-2, -2))
         root.addView(header)
 
         val pageContent = LinearLayout(this).apply {
@@ -208,13 +201,17 @@ class PhotoOverviewActivity : Activity() {
     private fun renderPhotos() {
         content.removeAllViews()
         val origin = currentLocation
-        val sorted = if (origin != null) {
-            photos.sortedBy { photo ->
+        val ommerschans = photos.filter { it.title.trim() == OMMERSCHANS_PHOTO_TITLE }
+        val otherPhotos = photos.filterNot { it.title.trim() == OMMERSCHANS_PHOTO_TITLE }
+        val sortedOthers = if (origin != null) {
+            otherPhotos.sortedBy { photo ->
                 val result = FloatArray(1)
                 Location.distanceBetween(origin.latitude, origin.longitude, photo.objectLat, photo.objectLng, result)
                 result[0]
             }
-        } else photos.sortedBy { it.title.lowercase(Locale.ROOT) }
+        } else otherPhotos.sortedBy { it.title.lowercase(Locale.ROOT) }
+        // De Ommerschans is de verste locatie in de huidige fotoselectie: altijd als laatste tonen.
+        val sorted = sortedOthers + ommerschans
 
         if (origin == null) {
             addMessage("Locatie niet beschikbaar. Geef locatietoestemming om de foto's op afstand te sorteren.")

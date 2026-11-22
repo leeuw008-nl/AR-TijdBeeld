@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
@@ -157,6 +158,8 @@ class ModelArActivity : Activity() {
             }
         }
         val root = FrameLayout(this)
+        glView.isFocusable = false
+        glView.isFocusableInTouchMode = false
         root.addView(glView, FrameLayout.LayoutParams(-1, -1))
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -172,14 +175,6 @@ class ModelArActivity : Activity() {
             setOnClickListener { finish() }
         }
         header.addView(backButton, LinearLayout.LayoutParams(dp(56), dp(56)))
-        header.addView(TextView(this).apply {
-            val version = packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
-            text = "v$version"
-            textSize = 12f
-            setTextColor(0xFFFFFFFF.toInt())
-            contentDescription = "App-versie $version"
-            setPadding(0, 0, dp(8), 0)
-        }, LinearLayout.LayoutParams(-2, -2))
         header.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
         root.addView(header, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
 
@@ -229,11 +224,81 @@ class ModelArActivity : Activity() {
                 }
             }
             root.addView(sensitivityControls, FrameLayout.LayoutParams(dp(280), -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
-                bottomMargin = dp(24)
+                bottomMargin = dp(116)
+            })
+
+            fun controlButton(label: String, action: () -> Unit): TextView =
+                TextView(this).apply {
+                    text = label
+                    textSize = 20f
+                    gravity = Gravity.CENTER
+                    setTextColor(0xFFFFFFFF.toInt())
+                    setBackgroundColor(0xDD102A43.toInt())
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener {
+                        action()
+                        showSensitivityControls()
+                    }
+                }
+            val controlPanel = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(6), dp(5), dp(6), dp(5))
+                setBackgroundColor(0x66000000)
+            }
+            val orbitRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+            }
+            listOf(
+                "◀" to { renderer.stepOrbitStandalone(-15f, 0f) },
+                "▲" to { renderer.stepOrbitStandalone(0f, -12f) },
+                "▶" to { renderer.stepOrbitStandalone(15f, 0f) },
+                "▼" to { renderer.stepOrbitStandalone(0f, 12f) }
+            ).forEach { (label, action) ->
+                orbitRow.addView(controlButton(label, action), LinearLayout.LayoutParams(dp(48), dp(40)).apply {
+                    leftMargin = dp(3); rightMargin = dp(3); bottomMargin = dp(4)
+                })
+            }
+            controlPanel.addView(orbitRow)
+            val zoomRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+            }
+            zoomRow.addView(controlButton("−", { renderer.zoomStandalone(0.8f) }),
+                LinearLayout.LayoutParams(dp(56), dp(38)).apply { rightMargin = dp(4) })
+            zoomRow.addView(controlButton("Reset", { renderer.resetStandaloneView() }).apply {
+                textSize = 14f
+            }, LinearLayout.LayoutParams(dp(92), dp(38)).apply { leftMargin = dp(4); rightMargin = dp(4) })
+            zoomRow.addView(controlButton("+", { renderer.zoomStandalone(1.25f) }),
+                LinearLayout.LayoutParams(dp(56), dp(38)).apply { leftMargin = dp(4) })
+            controlPanel.addView(zoomRow)
+            root.addView(controlPanel, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                bottomMargin = dp(10)
             })
         }
+        root.isFocusableInTouchMode = true
+        root.requestFocus()
         setContentView(root)
         requestPermissionsIfNeeded()
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (standalonePreview) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_A -> renderer.stepOrbitStandalone(-12f, 0f)
+                KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_D -> renderer.stepOrbitStandalone(12f, 0f)
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> renderer.stepOrbitStandalone(0f, -10f)
+                KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_S -> renderer.stepOrbitStandalone(0f, 10f)
+                KeyEvent.KEYCODE_PLUS, KeyEvent.KEYCODE_EQUALS, KeyEvent.KEYCODE_NUMPAD_ADD -> renderer.zoomStandalone(1.2f)
+                KeyEvent.KEYCODE_MINUS, KeyEvent.KEYCODE_NUMPAD_SUBTRACT -> renderer.zoomStandalone(0.83f)
+                KeyEvent.KEYCODE_HOME, KeyEvent.KEYCODE_R -> renderer.resetStandaloneView()
+                else -> return super.onKeyDown(keyCode, event)
+            }
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
