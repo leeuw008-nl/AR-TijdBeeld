@@ -109,7 +109,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     fun setDisplayRotation(rotation: Int) { displayRotation = rotation; geometryChanged = true }
 
     fun setZoomSensitivity(value: Float) {
-        if (standaloneMode && value.isFinite()) standaloneZoomSensitivity = value.coerceIn(0f, 20f)
+        if (standaloneMode && value.isFinite()) standaloneZoomSensitivity = value.coerceIn(0f, 100f)
     }
 
     /** Move the model in the viewing plane with a two-finger drag. */
