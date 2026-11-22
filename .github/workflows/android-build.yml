@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: tijdbeeld-android-build-${{ github.ref }}-${{ github.sha }}
@@ -90,6 +91,16 @@ jobs:
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
           "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='3'|application-label:'AR-TijdBeeld'"
 
+      # Retrieve the exact build #139 APK so the test covers a real in-place update.
+      - name: Download build #139 baseline APK
+        uses: actions/download-artifact@v4
+        with:
+          name: AR-TijdBeeld
+          path: baseline
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 44958637374
+
       # Publish the APK before the optional emulator test, so a slow emulator
       # cannot prevent the user from receiving the already verified install file.
       - name: Upload AR-TijdBeeld APK
@@ -110,5 +121,9 @@ jobs:
           profile: pixel_2
           disable-animations: true
           script: |
+            test -s baseline/AR-TijdBeeld.apk
+            adb install baseline/AR-TijdBeeld.apk
+            adb shell pm path nl.leeuw008.tijdbeeld.diagnose32stable
             adb install -r dist/AR-TijdBeeld.apk
             adb shell pm path nl.leeuw008.tijdbeeld.diagnose32stable
+            adb shell monkey -p nl.leeuw008.tijdbeeld.diagnose32stable 1
