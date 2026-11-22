@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: tijdbeeld-android-build-${{ github.ref }}
@@ -43,7 +44,6 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
           test -s ~/.android/debug.keystore
-          keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey | grep -qi '2E:BB:7D:A5:20:33:26:E6:C5:AA:54:74:93:E0:D0:3F:25:8E:A9:6E'
 
 
       - name: Set up Gradle
@@ -91,6 +91,28 @@ jobs:
           "$APKSIGNER" verify --verbose --print-certs dist/AR-TijdBeeld.apk
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
           "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='1'|application-label:'AR-TijdBeeld nieuw'"
+
+      - name: Download exact build 139 APK for update test
+        uses: actions/download-artifact@v4
+        with:
+          name: AR-TijdBeeld
+          path: baseline
+          repository: leeuw008-nl/AR-TijdBeeld
+          run-id: 44535485878
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Test update installation over build 139 on Android 12
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 31
+          arch: x86_64
+          profile: pixel_2
+          script: |
+            adb install baseline/AR-TijdBeeld.apk
+            adb shell pm path nl.leeuw008.tijdbeeld.diagnose32stable
+            adb install -r dist/AR-TijdBeeld.apk
+            adb shell pm path nl.leeuw008.tijdbeeld.diagnose32stable
+            adb shell monkey -p nl.leeuw008.tijdbeeld.diagnose32stable 1
 
       - name: Upload AR-TijdBeeld APK
         uses: actions/upload-artifact@v4
