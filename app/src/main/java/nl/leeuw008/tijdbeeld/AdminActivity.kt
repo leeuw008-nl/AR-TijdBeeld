@@ -141,7 +141,7 @@ class AdminActivity : Activity() {
                 val expiresIn = response?.optLong("expiresIn", 0L) ?: 0L
                 prefs.edit().putLong(
                     "admin_session_expires_at",
-                    if (persistent || expiresIn <= 0L) System.currentTimeMillis() + 7L * 24L * 60L * 60L * 1000L else System.currentTimeMillis() + expiresIn * 1000L
+                    if (persistent || expiresIn <= 0L) System.currentTimeMillis() + 365L * 24L * 60L * 60L * 1000L else System.currentTimeMillis() + expiresIn * 1000L
                 ).apply()
             }
         }.start()
@@ -363,14 +363,6 @@ class AdminActivity : Activity() {
             setTypeface(null, android.graphics.Typeface.BOLD)
             setTextColor(0xFFFFFFFF.toInt())
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        heading.addView(TextView(this).apply {
-            val installedVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: "onbekend"
-            text = "v$installedVersion"
-            textSize = 13f
-            setTextColor(0xFFFFFFFF.toInt())
-            gravity = Gravity.CENTER_VERTICAL or Gravity.END
-            contentDescription = "App-versie $installedVersion"
-        })
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(16, 12, 16, 12)
@@ -1152,14 +1144,6 @@ class AdminActivity : Activity() {
             setTypeface(null, android.graphics.Typeface.BOLD)
             setTextColor(0xFFFFFFFF.toInt())
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        mapHeader.addView(TextView(this).apply {
-            val installedVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: "onbekend"
-            text = "v$installedVersion"
-            textSize = 13f
-            setTextColor(0xFFFFFFFF.toInt())
-            gravity = Gravity.CENTER_VERTICAL or Gravity.END
-            contentDescription = "App-versie $installedVersion"
-        })
         screen.addView(mapHeader, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
 
         val zoomControls = LinearLayout(this).apply {
