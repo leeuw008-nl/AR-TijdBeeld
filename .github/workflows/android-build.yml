@@ -2,7 +2,7 @@ name: Android build
 
 on:
   push:
-    branches: [ main, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes, feature/ommerschans-photo-georef, fix/ommerschans-topokaart-footprint, fix/persistent-admin-session-and-inner-wall ]
+    branches: [ main, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes, feature/ommerschans-photo-georef, fix/ommerschans-topokaart-footprint, fix/persistent-admin-session-and-inner-wall, fix/build139-camera-header-geospatial-session ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -68,7 +68,13 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: gradle --no-daemon :app:assembleDebug
+          ARCORE_API_KEY: ${{ secrets.ARCORE_API_KEY }}
+        run: |
+          if [ -z "$ARCORE_API_KEY" ]; then
+            echo "::error::GitHub Actions secret ARCORE_API_KEY is missing. Geospatial authorization cannot be configured."
+            exit 1
+          fi
+          gradle --no-daemon :app:assembleDebug
 
       - name: Prepare AR-TijdBeeld APK
         run: |
