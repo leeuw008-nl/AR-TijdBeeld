@@ -90,7 +90,7 @@ jobs:
           fi
           "$APKSIGNER" verify --verbose --print-certs dist/AR-TijdBeeld.apk
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
-          "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='1'|application-label:'AR-TijdBeeld nieuw'"
+          "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='2'|application-label:'AR-TijdBeeld'"
 
       - name: Download exact build 139 APK for update test
         uses: actions/download-artifact@v4
