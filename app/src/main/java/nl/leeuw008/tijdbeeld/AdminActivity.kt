@@ -1152,6 +1152,14 @@ class AdminActivity : Activity() {
             setTypeface(null, android.graphics.Typeface.BOLD)
             setTextColor(0xFFFFFFFF.toInt())
         }, LinearLayout.LayoutParams(0, -2, 1f))
+        mapHeader.addView(TextView(this).apply {
+            val installedVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: "onbekend"
+            text = "v$installedVersion"
+            textSize = 13f
+            setTextColor(0xFFFFFFFF.toInt())
+            gravity = Gravity.CENTER_VERTICAL or Gravity.END
+            contentDescription = "App-versie $installedVersion"
+        })
         screen.addView(mapHeader, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
 
         val zoomControls = LinearLayout(this).apply {
@@ -1254,7 +1262,18 @@ class AdminActivity : Activity() {
         cameraPin.on('dragend',function(){var p=cameraPin.getLatLng();TijdBeeld.onMapMove('camera',p.lat,p.lng);});
         function setPoints(a,b,c,d,fit){
           objectPin.setLatLng([a,b]);cameraPin.setLatLng([c,d]);
-          if(fit!==false){var bounds=L.latLngBounds([[a,b],[c,d]]);map.fitBounds(bounds.pad(0.35),{maxZoom:19});}
+          if(fit!==false){
+            var center=L.latLng((a+c)/2,(b+d)/2);
+            map.setView(center,17,{animate:false});
+            map.whenReady(function(){
+              var p1=map.latLngToContainerPoint([a,b]);
+              var p2=map.latLngToContainerPoint([c,d]);
+              var actual=Math.max(1,p1.distanceTo(p2));
+              var desired=Math.max(24,map.getSize().x*0.10);
+              var adjusted=Math.max(5,Math.min(19,map.getZoom()+Math.log2(desired/actual)));
+              map.setView(center,adjusted,{animate:false});
+            });
+          }
         }
         function saveMapView(){var p=map.getCenter();TijdBeeld.onMapViewport(p.lat,p.lng,map.getZoom());}
         map.on('moveend',saveMapView);
