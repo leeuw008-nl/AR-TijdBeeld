@@ -247,6 +247,13 @@ class ModelArActivity : Activity() {
                 setPadding(dp(6), dp(5), dp(6), dp(5))
                 setBackgroundColor(0x66000000)
             }
+            controlPanel.addView(TextView(this).apply {
+                text = "Eén vinger slepen: rondom draaien\\nTwee vingers knijpen: in- en uitzoomen\\nPijlen / WASD: draaien  •  + / −: zoomen  •  R: reset"
+                textSize = 12f
+                setTextColor(0xFFFFFFFF.toInt())
+                gravity = Gravity.CENTER
+                setPadding(dp(8), dp(3), dp(8), dp(8))
+            })
             val orbitRow = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
