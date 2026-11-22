@@ -2,7 +2,7 @@ name: Android build
 
 on:
   push:
-    branches: [ main, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes, feature/ommerschans-photo-georef, fix/ommerschans-topokaart-footprint, fix/persistent-admin-session-and-inner-wall, fix/backup-export-import-from-build-139 ]
+    branches: [ main, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes, feature/ommerschans-photo-georef, fix/ommerschans-topokaart-footprint, fix/persistent-admin-session-and-inner-wall, fix/backup-export-import-from-build-139, release/werkende-versie-alle-6-punten ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -90,7 +90,7 @@ jobs:
           fi
           "$APKSIGNER" verify --verbose --print-certs dist/AR-TijdBeeld.apk
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
-          "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='3'|application-label:'AR-TijdBeeld'"
+          "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='4'|application-label:'AR-TijdBeeld'"
 
       - name: Download exact build 139 APK for update test
         uses: actions/download-artifact@v4
@@ -110,10 +110,10 @@ jobs:
           retention-days: 31
 
       - name: Test update installation over build 139 on Android 12
-        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 31
+          emulator-boot-timeout: 600
           arch: x86_64
           profile: pixel_2
           target: google_apis
