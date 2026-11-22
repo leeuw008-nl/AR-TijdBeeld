@@ -53,3 +53,14 @@ Laatste inhoudelijke wijzigingscommit vóór de signing-correctie:
 - Bescherm bestaande functies; voer geen onnodige reset of branch-terugzetting uit.
 - Rapporteer alleen uitgevoerde en gecontroleerde resultaten; geen ongefundeerde succesclaims.
 - Houd het logboek na iedere relevante wijziging bij.
+
+
+## 22 november 2026 — vervolg na installatie build 231
+- Gebruiker heeft build 231 daadwerkelijk geïnstalleerd.
+- De vier gevraagde UI/functionaliteitswijzigingen zijn al aanwezig in commit 7f4c93a: versie rechts in Start-header; Ommerschans onderaan; sessie-refresh; 3D orbit/zoom/touch/toetsen.
+- Geospatial-herstel: manifestmetadata `com.google.android.ar.API_KEY` opnieuw toegevoegd; Gradle injecteert `ARCORE_API_KEY` vanuit de bestaande GitHub Secret.
+- Android-workflow geeft `ARCORE_API_KEY` nu mee aan Gradle en controleert dat de secret aanwezig is.
+- Build 231 is met een tijdelijke, niet-bewaarde sleutel ondertekend (SHA-1 2459666eaa0479748efd255bcb705a488c8caeca). Bestaande persistent signing secret heeft SHA-1 1ce60a1673fa7b5a1f5ee3d7c6de426007806d3a. Een update over build 231 is dus technisch onmogelijk zonder de oorspronkelijke private sleutel.
+- Workflow gebruikt voortaan de bestaande persistent signing secret en doet geen onjuiste claim dat de nieuwe APK over build 231 kan installeren. De gebruiker zal vóór overstap appgegevens moeten veiligstellen en eenmalig schoon installeren.
+- Laatste commits: manifest 35ecf8c; Gradle 4ab7a5c; workflow 2a3760c.
+- Nog te controleren: Android workflowresultaat, APK-signature, ARCore Earth status op toestel (moet ENABLED zijn). Codewijziging alleen bewijst nog geen werkende Google Cloud API-keyrestrictie.
