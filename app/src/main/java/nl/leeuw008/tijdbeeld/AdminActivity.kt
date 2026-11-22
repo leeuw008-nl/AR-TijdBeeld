@@ -346,15 +346,15 @@ class AdminActivity : Activity() {
                         true
                     }
                     val beheerMenu = menu.addSubMenu("Beheer")
-                    beheerMenu.add("Foto toevoegen").setOnMenuItemClickListener {
+                    beheerMenu.add("Object toevoegen").setOnMenuItemClickListener {
                         switchSection("add")
                         true
                     }
-                    beheerMenu.add("Foto wijzigen").setOnMenuItemClickListener {
+                    beheerMenu.add("Object wijzigen").setOnMenuItemClickListener {
                         switchSection("edit")
                         true
                     }
-                    beheerMenu.add("Foto startpagina").setOnMenuItemClickListener {
+                    beheerMenu.add("Startpagina-object").setOnMenuItemClickListener {
                         switchSection("home")
                         true
                     }
@@ -386,7 +386,7 @@ class AdminActivity : Activity() {
         }
 
         if (currentSection == "home") {
-            addSection(root, "Selecteer de foto voor de startpagina")
+            addSection(root, "Selecteer het object voor de startpagina")
             featuredSelector = Spinner(this)
             root.addView(featuredSelector, LinearLayout.LayoutParams(-1, dp(52)))
             root.addView(View(this).apply {
@@ -442,20 +442,36 @@ class AdminActivity : Activity() {
             formPanel.addView(preview, LinearLayout.LayoutParams(-1, dp(190)).apply {
                 topMargin = dp(8); bottomMargin = dp(8)
             })
+            addSection(formPanel, "Type object")
+            objectTypeSelector = Spinner(this)
+            objectTypeSelector.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, listOf("Foto", "3D-model"))
+            formPanel.addView(objectTypeSelector, LinearLayout.LayoutParams(-1, dp(48)))
             titleInput = addField(formPanel, "Titel / bijschrift", "Bijv. 1910 - Kantongerechtsgebouw").apply {
                 setSelectAllOnFocus(true)
             }
-            urlInput = addField(formPanel, "URL van de historische foto", "https://…")
+            urlInput = addField(formPanel, "URL van de foto of het 3D-modelbestand (GLB)", "https://…")
             // Foto controleren is samengevoegd met Opslaan.
 
-            addSection(formPanel, "Locatie van het historische object")
+            addSection(formPanel, "Locatie van het object")
             val objectCoordinates = coordinateRow(formPanel, "Breedtegraad (latitude)", "52.518349", "Lengtegraad (longitude)", "6.420889")
             objectLatInput = objectCoordinates.first
             objectLngInput = objectCoordinates.second
-            addSection(formPanel, "Locatie waar de foto is gemaakt")
-            val cameraCoordinates = coordinateRow(formPanel, "Breedtegraad (latitude)", "52.518263", "Lengtegraad (longitude)", "6.421917")
+            cameraFieldsContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            addSection(cameraFieldsContainer, "Locatie waar de foto is gemaakt")
+            val cameraCoordinates = coordinateRow(cameraFieldsContainer, "Breedtegraad (latitude)", "52.518263", "Lengtegraad (longitude)", "6.421917")
             cameraLatInput = cameraCoordinates.first
             cameraLngInput = cameraCoordinates.second
+            formPanel.addView(cameraFieldsContainer)
+            testFieldsContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            addSection(testFieldsContainer, "Testlocatie van het object")
+            val testCoordinates = coordinateRow(testFieldsContainer, "Breedtegraad (latitude)", "52.518349", "Lengtegraad (longitude)", "6.420889")
+            testLatInput = testCoordinates.first
+            testLngInput = testCoordinates.second
+            addSection(testFieldsContainer, "Weergavelocatie 3D-model")
+            testLocationSelector = Spinner(this)
+            testLocationSelector.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, listOf("Locatie van het object", "Testlocatie"))
+            testFieldsContainer.addView(testLocationSelector, LinearLayout.LayoutParams(-1, dp(48)))
+            formPanel.addView(testFieldsContainer)
             addSection(formPanel, "Kaart en camerabeeld")
             if (currentSection == "edit") {
                 val mapCameraActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -522,7 +538,7 @@ class AdminActivity : Activity() {
 
             addSection(formPanel, "Publiceren voor iedereen")
             publishCheckbox = CheckBox(this).apply {
-                text = "Publiceer deze foto voor iedereen"
+                text = "Publiceer dit object voor iedereen"
                 textSize = 14f
                 setTextColor(0xFF263746.toInt())
                 setOnCheckedChangeListener { _, checked ->
@@ -668,13 +684,18 @@ class AdminActivity : Activity() {
         updatingFields = true
         val p = photos[selected]
         modelPreviewButton?.visibility = if (p.title.trim() == OMMERSCHANS_PHOTO_TITLE) View.VISIBLE else View.GONE
-        titleInput.setText(p.title); urlInput.setText(p.imageUrl)
+        titleInput.setText(p.title); urlInput.setText(if (p.objectType == "MODEL") p.modelUrl else p.imageUrl)
+        objectTypeSelector.setSelection(if (p.objectType == "MODEL") 1 else 0, false)
         objectLatInput.setText(p.objectLat.toString()); objectLngInput.setText(p.objectLng.toString())
+        testLatInput.setText(if (p.testLat.isFinite()) p.testLat.toString() else "")
+        testLngInput.setText(if (p.testLng.isFinite()) p.testLng.toString() else "")
+        testLocationSelector.setSelection(if (p.displayLocation == "TEST") 1 else 0, false)
         cameraLatInput.setText(p.cameraLat.toString()); cameraLngInput.setText(p.cameraLng.toString())
         publishCheckbox.isChecked = p.published
         updatingFields = false
+        updateTypeFields()
         refreshPhotoSelector()
-        loadPreview(p.imageUrl)
+        if (p.objectType == "PHOTO") loadPreview(p.imageUrl) else preview.setImageDrawable(null)
         updateMapFromFields(fit = true)
     }
 
@@ -682,7 +703,7 @@ class AdminActivity : Activity() {
         if (!skipSave) saveCurrent()
         // Hergebruik een nog lege invoerfoto in plaats van telkens nieuwe lege records te maken.
         val unfinished = photos.indexOfFirst {
-            it.title.equals("Nieuwe historische foto", ignoreCase = true) && it.imageUrl.isBlank()
+            it.title.equals("Nieuw object", ignoreCase = true) && it.imageUrl.isBlank() && it.modelUrl.isBlank()
         }
         if (unfinished >= 0) {
             showPhoto(unfinished)
@@ -691,7 +712,7 @@ class AdminActivity : Activity() {
             return
         }
         hasLocalEditsSinceLaunch = true
-        photos.add(PhotoConfig("Nieuwe historische foto", "", 52.518349, 6.420889, 52.518263, 6.421917, 3f))
+        photos.add(PhotoConfig("Nieuw object", "", 52.518349, 6.420889, 52.518263, 6.421917, 3f))
         selected = photos.lastIndex
         saveAll()
         showPhoto(selected)
@@ -1091,7 +1112,19 @@ class AdminActivity : Activity() {
     }
 
     private fun loadPreview(url: String, showMessage: Boolean = false) {
+        if (photos.getOrNull(selected)?.objectType == "MODEL") { preview.setImageDrawable(null); return }
         loadImageInto(url, preview, showMessage)
+    }
+
+    private fun updateTypeFields() {
+        if (!::objectTypeSelector.isInitialized || photos.isEmpty()) return
+        val isModel = photos[selected].objectType == "MODEL"
+        cameraFieldsContainer.visibility = if (isModel) View.GONE else View.VISIBLE
+        testFieldsContainer.visibility = if (isModel) View.VISIBLE else View.GONE
+        preview.visibility = if (isModel) View.GONE else View.VISIBLE
+        urlInput.hint = if (isModel) "HTTPS-URL naar een GLB 2.0-bestand" else "HTTPS-URL van de historische foto"
+        modelPreviewButton?.visibility = if (isModel) View.VISIBLE else View.GONE
+        if (isModel) preview.setImageDrawable(null)
     }
 
     private fun loadImageInto(url: String, target: ImageView, showMessage: Boolean = false) {
