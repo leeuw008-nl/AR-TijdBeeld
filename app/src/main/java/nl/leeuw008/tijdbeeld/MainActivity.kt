@@ -96,11 +96,40 @@ class MainActivity : Activity(), SensorEventListener {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
             ))
+            val header = LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding((12 * resources.displayMetrics.density).toInt(), 0, (16 * resources.displayMetrics.density).toInt(), 0)
+                setBackgroundColor(0xFF1769AA.toInt())
+            }
+            val backButton = TextView(this@MainActivity).apply {
+                text = "‹"
+                textSize = 34f
+                gravity = Gravity.CENTER
+                setTextColor(0xFFFFFFFF.toInt())
+                contentDescription = "Terug"
+                setOnClickListener { finish() }
+            }
+            header.addView(backButton, LinearLayout.LayoutParams(
+                (52 * resources.displayMetrics.density).toInt(),
+                (56 * resources.displayMetrics.density).toInt()
+            ))
+            header.addView(TextView(this@MainActivity).apply {
+                text = "Bekijk via camera"
+                textSize = 20f
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                setTextColor(0xFFFFFFFF.toInt())
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(header, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                (56 * resources.displayMetrics.density).toInt(),
+                Gravity.TOP
+            ))
             addView(statusLabel, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 Gravity.TOP
-            ))
+            ).apply { topMargin = (56 * resources.displayMetrics.density).toInt() })
             val directionOverlay = LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
@@ -134,24 +163,9 @@ class MainActivity : Activity(), SensorEventListener {
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 Gravity.TOP or Gravity.CENTER_HORIZONTAL
             ).apply {
-                topMargin = (58 * resources.displayMetrics.density).toInt()
+                topMargin = (114 * resources.displayMetrics.density).toInt()
             })
-            addView(Button(this@MainActivity).apply {
-                text = "‹"
-                textSize = 30f
-                minWidth = (48 * resources.displayMetrics.density).toInt()
-                minimumWidth = (48 * resources.displayMetrics.density).toInt()
-                setPadding(0, 0, 0, 0)
-                contentDescription = "Terug naar beheer"
-                setOnClickListener { finish() }
-            }, FrameLayout.LayoutParams(
-                (52 * resources.displayMetrics.density).toInt(),
-                (48 * resources.displayMetrics.density).toInt(),
-                Gravity.TOP or Gravity.START
-            ).apply {
-                leftMargin = (12 * resources.displayMetrics.density).toInt()
-                topMargin = (8 * resources.displayMetrics.density).toInt()
-            })
+
             val bottomControls = LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(
