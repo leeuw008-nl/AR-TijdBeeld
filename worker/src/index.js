@@ -91,7 +91,7 @@ function validCatalog(value) {
     const type = photo.type || "PHOTO";
     if (type === "MODEL") {
       if (!(typeof photo.modelUrl === "string" && photo.modelUrl.startsWith("https://")) &&
-          !(typeof photo.modelAsset === "string" && /^[a-zA-Z0-9._-]+\\.glb$/i.test(photo.modelAsset))) return false;
+          !(typeof photo.modelAsset === "string" && /^[a-zA-Z0-9._-]+\.glb$/i.test(photo.modelAsset))) return false;
       if (!["OBJECT", "TEST"].includes(photo.displayLocation || "OBJECT")) return false;
       if ((photo.displayLocation || "OBJECT") === "TEST" &&
           (!Number.isFinite(photo.testLat) || photo.testLat < -90 || photo.testLat > 90 ||
