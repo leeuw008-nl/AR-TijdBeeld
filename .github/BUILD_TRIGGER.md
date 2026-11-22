@@ -1,1 +1,1 @@
-Temporary trigger for the Android APK build on feature/user-admin-modes. This file is removed after the build.
+Android build trigger for the verified location-sorting and persistent-session fixes (2026-11-22).
