@@ -1,6 +1,8 @@
 name: Deploy TijdBeeld Worker
 
 on:
+  push:
+    branches: [ fix/build139-camera-header-geospatial-session ]
   workflow_dispatch:
 
 permissions:
