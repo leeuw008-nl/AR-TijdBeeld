@@ -145,7 +145,8 @@ class PhotoOverviewActivity : Activity() {
                 runOnUiThread {
                     photos = loaded
                     catalogLoaded = true
-                    renderPhotos()
+                    if (locationResolved) renderPhotos()
+                    else showStatus("Fotocatalogus geladen. Huidige locatie bepalen voor de juiste afstandsvolgorde…")
                 }
             } catch (e: Exception) {
                 runOnUiThread {
@@ -202,7 +203,7 @@ class PhotoOverviewActivity : Activity() {
                 // Een oude positie is geen betrouwbare basis voor sortering. Alleen
                 // een cachepositie van maximaal 10 minuten wordt als fallback gebruikt.
                 currentLocation = fallback?.takeIf {
-                    System.currentTimeMillis() - it.time <= 10L * 60L * 1000L
+                    System.currentTimeMillis() - it.time <= 2L * 60L * 1000L
                 }
                 locationResolved = true
                 if (catalogLoaded) renderPhotos()
@@ -226,16 +227,19 @@ class PhotoOverviewActivity : Activity() {
     }
 
     private fun renderPhotos() {
+        // Wacht op zowel de catalogus als de locatie. Anders wordt de lijst eerst
+        // tijdelijk alfabetisch getoond en pas later op afstand herschikt.
+        if (!catalogLoaded || !locationResolved) return
         content.removeAllViews()
         val origin = currentLocation
         // Sorteer de volledige catalogus op de berekende afstand vanaf de actuele gebruikerslocatie.
         // Geen enkele foto krijgt een vaste positie; de volgorde volgt volledig uit de coördinaten.
         val sorted = if (origin != null) {
-            photos.sortedBy { photo ->
+            photos.sortedWith(compareBy<CatalogPhoto> { photo ->
                 val result = FloatArray(1)
                 Location.distanceBetween(origin.latitude, origin.longitude, photo.objectLat, photo.objectLng, result)
                 result[0]
-            }
+            }.thenBy { it.title.lowercase(Locale.ROOT) })
         } else {
             photos.sortedBy { it.title.lowercase(Locale.ROOT) }
         }
