@@ -37,7 +37,39 @@ class PhotoMapActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = FrameLayout(this)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.WHITE)
+        }
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(6), dp(14), dp(6))
+            setBackgroundColor(0xFF1769AA.toInt())
+        }
+        header.addView(TextView(this).apply {
+            text = "‹"
+            textSize = 34f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            contentDescription = "Terug"
+            setOnClickListener { finish() }
+        }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        header.addView(TextView(this).apply {
+            text = "v" + (packageManager.getPackageInfo(packageName, 0).versionName ?: "?")
+            textSize = 13f
+            setTextColor(Color.WHITE)
+            contentDescription = "App-versie"
+        })
+        header.addView(TextView(this).apply {
+            text = "AR-TijdBeeld"
+            textSize = 21f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            setPadding(dp(10), 0, 0, 0)
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        root.addView(header, LinearLayout.LayoutParams(-1, -2))
+        val mapFrame = FrameLayout(this)
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -50,7 +82,7 @@ class PhotoMapActivity : Activity() {
                     handleMapUrl(Uri.parse(url))
             }
         }
-        root.addView(webView, FrameLayout.LayoutParams(-1, -1))
+        mapFrame.addView(webView, FrameLayout.LayoutParams(-1, -1))
         status = TextView(this).apply {
             text = "TijdBeeld • fotolocaties ophalen…"
             textSize = 13f
@@ -59,20 +91,8 @@ class PhotoMapActivity : Activity() {
             setPadding(18, 14, 18, 14)
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
         }
-        root.addView(status, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
-        val back = Button(this).apply {
-            text = "‹"
-            textSize = 30f
-            minWidth = dp(52)
-            minimumWidth = dp(52)
-            setPadding(0, 0, 0, 0)
-            contentDescription = "Terug"
-            setOnClickListener { finish() }
-        }
-        root.addView(back, FrameLayout.LayoutParams(dp(52), dp(48), Gravity.TOP or Gravity.START).apply {
-            leftMargin = dp(12)
-            topMargin = dp(8)
-        })
+        mapFrame.addView(status, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        root.addView(mapFrame, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
         loadCatalog()
     }
@@ -157,6 +177,7 @@ class PhotoMapActivity : Activity() {
             const modelBounds = [[${overlayMeta.getDouble("south")},${overlayMeta.getDouble("west")}],
                                  [${overlayMeta.getDouble("north")},${overlayMeta.getDouble("east")}]];
             const ommerschansPhotoId = $ommerschansPhotoId;
+            const modelCenter = [52.587396655000006,6.391726895];
             const map = L.map('map',{zoomControl:false});
             L.control.zoom({position:'topright'}).addTo(map);
             const zoomLevel = L.control({position:'topright'});
@@ -171,7 +192,7 @@ class PhotoMapActivity : Activity() {
               if (el) el.textContent = 'Zoom ' + map.getZoom();
             });
             $tileLayerJs
-            const photoBounds = [];
+            const allBounds = [modelBounds[0], modelBounds[1]];
             // Georeferenced orthographic projection of the actual GLB mesh.
             const modelOverlay = L.imageOverlay(modelOverlayUrl, modelBounds, {
               opacity: 0.94, interactive: true, crossOrigin: false
@@ -189,6 +210,8 @@ class PhotoMapActivity : Activity() {
             modelPopup.appendChild(document.createElement('br'));
             modelPopup.appendChild(modelButton);
             modelOverlay.bindPopup(modelPopup);
+            const modelMarker = L.marker(modelCenter).addTo(map);
+            modelMarker.bindPopup(modelPopup);
             photos.forEach(p => {
               const makePhotoPopup = role => {
                 const box = document.createElement('div');
@@ -205,11 +228,10 @@ class PhotoMapActivity : Activity() {
               photographer.bindPopup(makePhotoPopup('Fotograaf'));
               const object = L.marker([p.lat,p.lng]).addTo(map);
               object.bindPopup(makePhotoPopup('Object'));
-              photoBounds.push([p.cameraLat,p.cameraLng]);
-              photoBounds.push([p.lat,p.lng]);
+              allBounds.push([p.cameraLat,p.cameraLng]);
+              allBounds.push([p.lat,p.lng]);
             });
-            const initialBounds = modelBounds;
-            map.fitBounds(initialBounds,{padding:[35,35],maxZoom:18});
+            map.fitBounds(L.latLngBounds(allBounds),{padding:[35,35],maxZoom:16});
             </script></body></html>
         """.trimIndent()
         webView.loadDataWithBaseURL("https://tijdbeeld.local/", html, "text/html", "UTF-8", null)
