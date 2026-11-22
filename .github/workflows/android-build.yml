@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -101,19 +101,6 @@ jobs:
           run-id: 44535485878
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Test update installation over build 139 on Android 12
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 31
-          arch: x86_64
-          profile: pixel_2
-          script: |
-            adb install baseline/AR-TijdBeeld.apk
-            adb shell pm path nl.leeuw008.tijdbeeld.diagnose32stable
-            adb install -r dist/AR-TijdBeeld.apk
-            adb shell pm path nl.leeuw008.tijdbeeld.diagnose32stable
-            adb shell monkey -p nl.leeuw008.tijdbeeld.diagnose32stable 1
-
       - name: Upload AR-TijdBeeld APK
         uses: actions/upload-artifact@v4
         with:
@@ -121,5 +108,21 @@ jobs:
           path: dist/AR-TijdBeeld.apk
           if-no-files-found: error
           retention-days: 31
+
+      - name: Test update installation over build 139 on Android 12
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 31
+          arch: x86_64
+          profile: pixel_2
+          target: google_apis
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            adb install baseline/AR-TijdBeeld.apk
+            adb shell pm path nl.leeuw008.tijdbeeld.diagnose32stable
+            adb install -r dist/AR-TijdBeeld.apk
+            adb shell pm path nl.leeuw008.tijdbeeld.diagnose32stable
+            adb shell monkey -p nl.leeuw008.tijdbeeld.diagnose32stable 1
 
 
