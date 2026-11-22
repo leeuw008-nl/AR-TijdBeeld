@@ -479,17 +479,19 @@ class AdminActivity : Activity() {
                     LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(3) })
                 val previewButton = actionButton("Bekijk 3D-model") {
                     saveCurrent()
-                    if (photos.getOrNull(selected)?.title?.trim() == OMMERSCHANS_PHOTO_TITLE) {
-                        startActivity(Intent(this@AdminActivity, ModelArActivity::class.java).apply {
+                    photos.getOrNull(selected)?.let { item ->
+                        if (item.objectType == "MODEL") startActivity(Intent(this@AdminActivity, ModelArActivity::class.java).apply {
                             putExtra("standalone_preview", true)
-                            putExtra("photoTitle", OMMERSCHANS_PHOTO_TITLE)
+                            putExtra("photoTitle", item.title)
+                            putExtra("modelUrl", item.modelUrl)
+                            putExtra("modelAsset", item.modelAsset)
                         })
                     }
                 }.apply {
                     textSize = 11f
                     minWidth = 0
                     setPadding(dp(3), 0, dp(3), 0)
-                    visibility = if (photos.getOrNull(selected)?.title?.trim() == OMMERSCHANS_PHOTO_TITLE) View.VISIBLE else View.GONE
+                    visibility = if (photos.getOrNull(selected)?.objectType == "MODEL") View.VISIBLE else View.GONE
                 }
                 modelPreviewButton = previewButton
                 mapCameraActions.addView(previewButton,
@@ -589,6 +591,27 @@ class AdminActivity : Activity() {
                 }
             }
         }
+        if (currentSection != "home") {
+            objectTypeSelector.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+                override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    if (!updatingFields && photos.isNotEmpty()) {
+                        photos[selected].objectType = if (position == 1) "MODEL" else "PHOTO"
+                        updateTypeFields()
+                        persistCurrentForm()
+                    }
+                }
+            }
+            testLocationSelector.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+                override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    if (!updatingFields && photos.isNotEmpty()) {
+                        photos[selected].displayLocation = if (position == 1) "TEST" else "OBJECT"
+                        persistCurrentForm()
+                    }
+                }
+            }
+        }
     }
 
     private fun switchSection(section: String) {
@@ -683,7 +706,6 @@ class AdminActivity : Activity() {
         selected = index.coerceIn(0, photos.lastIndex)
         updatingFields = true
         val p = photos[selected]
-        modelPreviewButton?.visibility = if (p.title.trim() == OMMERSCHANS_PHOTO_TITLE) View.VISIBLE else View.GONE
         titleInput.setText(p.title); urlInput.setText(if (p.objectType == "MODEL") p.modelUrl else p.imageUrl)
         objectTypeSelector.setSelection(if (p.objectType == "MODEL") 1 else 0, false)
         objectLatInput.setText(p.objectLat.toString()); objectLngInput.setText(p.objectLng.toString())
@@ -777,7 +799,6 @@ class AdminActivity : Activity() {
         if (photos.isEmpty() || !::titleInput.isInitialized) return
         val p = photos[selected]
         p.title = titleInput.text.toString().trim()
-        modelPreviewButton?.visibility = if (p.title == OMMERSCHANS_PHOTO_TITLE) View.VISIBLE else View.GONE
         val mediaUrl = urlInput.text.toString().trim()
         if (p.objectType == "MODEL") p.modelUrl = mediaUrl else p.imageUrl = mediaUrl
         p.objectLat = objectLatInput.numberOr(p.objectLat)
@@ -1079,14 +1100,22 @@ class AdminActivity : Activity() {
 
     private fun openCamera() {
         val p = photos[selected]
-        if (p.imageUrl.isBlank()) { Toast.makeText(this, "Vul eerst de URL van de foto in.", Toast.LENGTH_LONG).show(); return }
-        if (p.title.trim() == OMMERSCHANS_PHOTO_TITLE) {
+        if (p.objectType == "MODEL") {
+            if (p.modelUrl.isBlank() && p.modelAsset.isBlank()) { Toast.makeText(this, "Vul eerst de URL van het GLB-model in.", Toast.LENGTH_LONG).show(); return }
+            if (p.displayLocation == "TEST" && (!p.testLat.isFinite() || !p.testLng.isFinite())) {
+                Toast.makeText(this, "Vul eerst de testlocatie van het object in.", Toast.LENGTH_LONG).show(); return
+            }
+            val useTest = p.displayLocation == "TEST"
             startActivityForResult(Intent(this, ModelArActivity::class.java).apply {
                 putExtra("photoTitle", p.title)
-                putExtra("objectLat", p.objectLat)
-                putExtra("objectLng", p.objectLng)
+                putExtra("modelUrl", p.modelUrl)
+                putExtra("modelAsset", p.modelAsset)
+                putExtra("objectLat", p.objectLat); putExtra("objectLng", p.objectLng)
+                putExtra("targetLat", if (useTest) p.testLat else p.objectLat)
+                putExtra("targetLng", if (useTest) p.testLng else p.objectLng)
             }, 3001)
         } else {
+            if (p.imageUrl.isBlank()) { Toast.makeText(this, "Vul eerst de URL van de foto in.", Toast.LENGTH_LONG).show(); return }
             startActivityForResult(Intent(this, MainActivity::class.java).apply {
                 putExtra("title", p.title); putExtra("imageUrl", p.imageUrl)
                 putExtra("objectLat", p.objectLat); putExtra("objectLng", p.objectLng)
