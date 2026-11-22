@@ -127,7 +127,7 @@ class ModelArActivity : Activity() {
                             val centerX = (event.getX(0) + event.getX(1)) / 2f
                             val centerY = (event.getY(0) + event.getY(1)) / 2f
                             if (previousSpan > 0f && currentSpan > 0f) {
-                                if (!pinchActive && kotlin.math.abs(currentSpan - previousSpan) > dp(8)) pinchActive = true
+                                if (!pinchActive && kotlin.math.abs(currentSpan - previousSpan) > dp(8).toFloat()) pinchActive = true
                                 if (pinchActive) {
                                     renderer.zoomStandalone(currentSpan / previousSpan)
                                 } else {
