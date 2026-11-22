@@ -18,7 +18,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -116,17 +116,25 @@ jobs:
           ANDROID_I_WANT_MY_TCG: yes
         with:
           api-level: 31
-          emulator-boot-timeout: 600
+          emulator-boot-timeout: 300
           arch: x86_64
           profile: pixel_2
           target: google_apis
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           script: |
-            adb install baseline/AR-TijdBeeld.apk
-            adb shell pm path nl.leeuw008.tijdbeeld.diagnose32stable
-            adb install -r dist/AR-TijdBeeld.apk
-            adb shell pm path nl.leeuw008.tijdbeeld.diagnose32stable
-            adb shell monkey -p nl.leeuw008.tijdbeeld.diagnose32stable 1
+            set -euxo pipefail
+            timeout 120s adb wait-for-device
+            for attempt in $(seq 1 60); do
+              BOOTED="$(timeout 10s adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r' || true)"
+              if [ "$BOOTED" = "1" ]; then break; fi
+              sleep 5
+            done
+            test "$BOOTED" = "1"
+            timeout 120s adb install baseline/AR-TijdBeeld.apk
+            timeout 30s adb shell pm path nl.leeuw008.tijdbeeld.diagnose32stable
+            timeout 120s adb install -r dist/AR-TijdBeeld.apk
+            timeout 30s adb shell pm path nl.leeuw008.tijdbeeld.diagnose32stable
+            timeout 60s adb shell monkey -p nl.leeuw008.tijdbeeld.diagnose32stable 1
 
 
