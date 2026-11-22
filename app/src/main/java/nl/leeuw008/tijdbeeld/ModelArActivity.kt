@@ -6,8 +6,11 @@ import android.content.res.Configuration
 import android.content.pm.PackageManager
 import android.opengl.GLSurfaceView
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.View
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.SeekBar
@@ -28,6 +31,23 @@ class ModelArActivity : Activity() {
     private var session: Session? = null
     private var installRequested = false
     private var permissionRequested = false
+    private lateinit var sensitivityControls: LinearLayout
+    private val uiHandler = Handler(Looper.getMainLooper())
+    private val hideSensitivityControls = Runnable {
+        if (::sensitivityControls.isInitialized) {
+            sensitivityControls.animate().alpha(0f).setDuration(180).withEndAction {
+                sensitivityControls.visibility = View.GONE
+            }.start()
+        }
+    }
+
+    private fun showSensitivityControls() {
+        if (!::sensitivityControls.isInitialized) return
+        uiHandler.removeCallbacks(hideSensitivityControls)
+        sensitivityControls.visibility = View.VISIBLE
+        sensitivityControls.animate().alpha(1f).setDuration(120).start()
+        uiHandler.postDelayed(hideSensitivityControls, 3000L)
+    }
     private val standalonePreview: Boolean by lazy { intent.getBooleanExtra("standalone_preview", false) }
     private val photoTitle: String by lazy {
         if (standalonePreview) "3D-model bekijken" else
@@ -63,6 +83,9 @@ class ModelArActivity : Activity() {
             var previousX = 0f
             var previousY = 0f
             var previousSpan = 0f
+            var previousCenterX = 0f
+            var previousCenterY = 0f
+            var pinchActive = false
             fun span(event: MotionEvent): Float {
                 if (event.pointerCount < 2) return 0f
                 val dx = event.getX(0) - event.getX(1)
@@ -72,20 +95,36 @@ class ModelArActivity : Activity() {
             glView.setOnTouchListener { _, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
+                        showSensitivityControls()
                         previousX = event.x
                         previousY = event.y
                         previousSpan = 0f
+                        pinchActive = false
                         true
                     }
                     MotionEvent.ACTION_POINTER_DOWN -> {
                         previousSpan = span(event)
+                        previousCenterX = (event.getX(0) + event.getX(1)) / 2f
+                        previousCenterY = (event.getY(0) + event.getY(1)) / 2f
+                        pinchActive = false
                         true
                     }
                     MotionEvent.ACTION_MOVE -> {
                         if (event.pointerCount >= 2) {
                             val currentSpan = span(event)
-                            if (previousSpan > 0f && currentSpan > 0f) renderer.zoomStandalone(currentSpan / previousSpan)
+                            val centerX = (event.getX(0) + event.getX(1)) / 2f
+                            val centerY = (event.getY(0) + event.getY(1)) / 2f
+                            if (previousSpan > 0f && currentSpan > 0f) {
+                                if (!pinchActive && kotlin.math.abs(currentSpan - previousSpan) > dp(8)) pinchActive = true
+                                if (pinchActive) {
+                                    renderer.zoomStandalone(currentSpan / previousSpan)
+                                } else {
+                                    renderer.panStandalone(centerX - previousCenterX, centerY - previousCenterY, glView.width, glView.height)
+                                }
+                            }
                             previousSpan = currentSpan
+                            previousCenterX = centerX
+                            previousCenterY = centerY
                         } else {
                             val deltaX = event.x - previousX
                             val deltaY = event.y - previousY
@@ -106,6 +145,8 @@ class ModelArActivity : Activity() {
                     }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                         previousSpan = 0f
+                        uiHandler.removeCallbacks(hideSensitivityControls)
+                        uiHandler.postDelayed(hideSensitivityControls, 3000L)
                         true
                     }
                     else -> true
@@ -139,26 +180,40 @@ class ModelArActivity : Activity() {
                 gravity = Gravity.CENTER_HORIZONTAL
             }
             val sensitivitySlider = SeekBar(this).apply {
-                max = 100
+                max = 500
                 progress = 50
                 setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                         renderer.setZoomSensitivity(progress / 100f)
                         sensitivityLabel.text = "Zoom-/sleepgevoeligheid: $progress%"
+                        if (fromUser) showSensitivityControls()
                     }
-                    override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
-                    override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) { showSensitivityControls() }
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                        uiHandler.removeCallbacks(hideSensitivityControls)
+                        uiHandler.postDelayed(hideSensitivityControls, 3000L)
+                    }
                 })
             }
-            val controls = LinearLayout(this).apply {
+            sensitivityControls = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_HORIZONTAL
                 setPadding(dp(12), dp(8), dp(12), dp(8))
                 setBackgroundColor(0xDD102A43.toInt())
                 addView(sensitivityLabel, LinearLayout.LayoutParams(-1, -2))
                 addView(sensitivitySlider, LinearLayout.LayoutParams(-1, -2))
+                visibility = View.GONE
+                alpha = 0f
+                setOnTouchListener { _, event ->
+                    showSensitivityControls()
+                    if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                        uiHandler.removeCallbacks(hideSensitivityControls)
+                        uiHandler.postDelayed(hideSensitivityControls, 3000L)
+                    }
+                    false
+                }
             }
-            root.addView(controls, FrameLayout.LayoutParams(dp(280), -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+            root.addView(sensitivityControls, FrameLayout.LayoutParams(dp(280), -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
                 bottomMargin = dp(24)
             })
         }
