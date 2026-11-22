@@ -135,15 +135,7 @@ class StartActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL or Gravity.END
             contentDescription = "App-versie $installedVersion"
         }, LinearLayout.LayoutParams(-2, -2))
-        header.addView(TextView(this).apply {
-            val installedVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: "onbekend"
-            text = "v$installedVersion"
-            textSize = 13f
-            setTextColor(Color.WHITE)
-            alpha = 0.9f
-            gravity = Gravity.CENTER_VERTICAL or Gravity.END
-            contentDescription = "App-versie $installedVersion"
-        }, LinearLayout.LayoutParams(-2, -2))
+
         root.addView(header)
 
         val scroll = ScrollView(this)
