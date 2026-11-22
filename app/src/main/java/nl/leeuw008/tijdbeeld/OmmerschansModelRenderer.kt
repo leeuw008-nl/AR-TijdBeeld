@@ -42,7 +42,9 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     @Volatile private var standaloneRotationX = 0f
     @Volatile private var standaloneRotationY = 0f
     @Volatile private var standaloneCameraDistance = 7.5f
-    @Volatile private var standaloneZoomSensitivity = 0.5f
+    @Volatile private var standaloneZoomSensitivity = 1.0f
+    @Volatile private var standalonePanX = 0f
+    @Volatile private var standalonePanY = 0f
     private var cameraTexture = 0
     private var cameraProgram = 0
     private var modelProgram = 0
@@ -139,6 +141,14 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             val exponent = 0.15f + standaloneZoomSensitivity * 0.85f
             standaloneCameraDistance = (standaloneCameraDistance / factor.coerceIn(0.1f, 10f).let { Math.pow(it.toDouble(), exponent.toDouble()).toFloat() }).coerceIn(0.65f, 24f)
         }
+    }
+
+    fun panStandalone(deltaX: Float, deltaY: Float) {
+        if (!standaloneMode || !deltaX.isFinite() || !deltaY.isFinite()) return
+        val sensitivity = 0.0025f * (0.25f + standaloneZoomSensitivity)
+        val zoomScale = (standaloneCameraDistance / 7.5f).coerceIn(0.25f, 3f)
+        standalonePanX = (standalonePanX + deltaX * sensitivity * zoomScale).coerceIn(-15f, 15f)
+        standalonePanY = (standalonePanY - deltaY * sensitivity * zoomScale).coerceIn(-15f, 15f)
     }
 
     fun setGeoTarget(latitude: Double, longitude: Double) {
