@@ -112,6 +112,8 @@ jobs:
 
       - name: Test update installation over build 139 on Android 12
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          ANDROID_I_WANT_MY_TCG: yes
         with:
           api-level: 31
           emulator-boot-timeout: 600
