@@ -85,7 +85,7 @@ class StartActivity : Activity() {
                     if (prefs.getString("admin_session_token", "").orEmpty() == token) {
                         prefs.edit().putLong(
                             "admin_session_expires_at",
-                            if (persistent || expiresIn <= 0L) System.currentTimeMillis() + 24L * 60L * 60L * 1000L else System.currentTimeMillis() + expiresIn * 1000L
+                            if (persistent || expiresIn <= 0L) System.currentTimeMillis() + 7L * 24L * 60L * 60L * 1000L else System.currentTimeMillis() + expiresIn * 1000L
                         ).apply()
                     }
                 }
@@ -236,6 +236,10 @@ class StartActivity : Activity() {
                 }
                 beheerMenu.add("Achtergrondkaart").setOnMenuItemClickListener {
                     chooseMapBackground()
+                    true
+                }
+                beheerMenu.add("Back-up maken / importeren").setOnMenuItemClickListener {
+                    startActivity(Intent(this@StartActivity, BackupActivity::class.java))
                     true
                 }
                 beheerMenu.add("Uitloggen").setOnMenuItemClickListener {
