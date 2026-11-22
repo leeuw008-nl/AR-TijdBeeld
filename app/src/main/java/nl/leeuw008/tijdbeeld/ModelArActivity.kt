@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
@@ -221,8 +222,33 @@ class ModelArActivity : Activity() {
                 }
             }
             root.addView(sensitivityControls, FrameLayout.LayoutParams(dp(280), -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
-                bottomMargin = dp(24)
+                bottomMargin = dp(76)
             })
+
+            // Altijd zichtbare bediening naast de aanraakgebaren.
+            val modelControls = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                setPadding(dp(6), dp(5), dp(6), dp(5))
+                setBackgroundColor(0xDD102A43.toInt())
+            }
+            fun control(label: String, action: () -> Unit) = TextView(this).apply {
+                text = label
+                textSize = 22f
+                setTextColor(0xFFFFFFFF.toInt())
+                gravity = Gravity.CENTER
+                isFocusable = true
+                isClickable = true
+                setPadding(dp(9), dp(7), dp(9), dp(7))
+                setOnClickListener { action() }
+            }
+            modelControls.addView(control("↶") { renderer.rotateStandalone(-12f, 0f) })
+            modelControls.addView(control("↑") { renderer.rotateStandalone(0f, -12f) })
+            modelControls.addView(control("↓") { renderer.rotateStandalone(0f, 12f) })
+            modelControls.addView(control("↷") { renderer.rotateStandalone(12f, 0f) })
+            modelControls.addView(control("−") { renderer.zoomStandalone(0.82f) })
+            modelControls.addView(control("+") { renderer.zoomStandalone(1.22f) })
+            root.addView(modelControls, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         }
         setContentView(root)
         requestPermissionsIfNeeded()
