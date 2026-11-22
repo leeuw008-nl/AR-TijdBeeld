@@ -425,17 +425,22 @@ class StartActivity : Activity() {
                 if (bitmap != null) runOnUiThread { featuredImage.setImageBitmap(bitmap) }
             } catch (_: Exception) { }
         }.start()
-        val markers = photos.joinToString(",") { "[${it.objectLat},${it.objectLng}]" }
+        val photoMarkers = photos.joinToString(",") { "[${it.objectLat},${it.objectLng}]" }
+        // Vast modelanker van Ommerschans; staat los van de fotocatalogus.
+        val modelMarkers = "[[52.587396655,6.391726895]]"
         val html = """
             <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
             <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
             <style>html,body,#map{height:100%;margin:0} .leaflet-control-attribution{font-size:8px}</style>
             <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script></head>
             <body><div id="map"></div><script>
-            const points=[$markers]; const map=L.map('map',{zoomControl:false,scrollWheelZoom:false,dragging:false, doubleClickZoom:false, touchZoom:false});
+            const photoPoints=[$photoMarkers]; const modelPoints=$modelMarkers;
+            const points=photoPoints.concat(modelPoints);
+            const map=L.map('map',{zoomControl:false,scrollWheelZoom:false,dragging:false, doubleClickZoom:false, touchZoom:false});
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
-            points.forEach(p=>L.circleMarker(p,{radius:5,color:'#1769aa',fillColor:'#1769aa',fillOpacity:1}).addTo(map));
-            if(points.length===1){map.setView(points[0],16)}else{map.fitBounds(points,{padding:[18,18],maxZoom:16})}
+            photoPoints.forEach(p=>L.circleMarker(p,{radius:5,color:'#1769aa',fillColor:'#1769aa',fillOpacity:1}).addTo(map));
+            modelPoints.forEach(p=>L.circleMarker(p,{radius:7,color:'#d33b32',fillColor:'#d33b32',fillOpacity:1}).addTo(map));
+            if(points.length===1){map.setView(points[0],16)}else{map.fitBounds(points,{padding:[18,18],maxZoom:15})}
             </script></body></html>
         """.trimIndent()
         mapPreview.loadDataWithBaseURL("https://tijdbeeld.leeuw008.nl/", html, "text/html", "UTF-8", null)
