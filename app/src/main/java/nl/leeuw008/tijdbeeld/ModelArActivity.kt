@@ -58,7 +58,11 @@ class ModelArActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         status = TextView(this).apply {
-            text = photoTitle + "\nCamera en geografische plaatsing starten…"
+            text = if (standalonePreview) {
+                "3D-model bekijken\nSleep met één vinger om rond het model te draaien. Knijp met twee vingers om in/uit te zoomen. Gebruik de pijltjes en +/− onderaan."
+            } else {
+                photoTitle + "\nCamera en geografische plaatsing starten…"
+            }
             textSize = 16f
             setTextColor(0xFFFFFFFF.toInt())
             setShadowLayer(5f, 1f, 1f, 0xFF000000.toInt())

@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.graphics.BitmapFactory
 import android.widget.ImageView
 import android.view.Gravity
@@ -15,6 +17,9 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import org.json.JSONObject
@@ -39,6 +44,8 @@ class PhotoOverviewActivity : Activity() {
     private var currentLocation: Location? = null
     private var catalogLoaded = false
     private var locationResolved = false
+    private val locationTimeoutHandler = Handler(Looper.getMainLooper())
+    private var locationCallback: LocationCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -178,16 +185,16 @@ class PhotoOverviewActivity : Activity() {
             // daardoor een verkeerde afstandsvolgorde (onder andere voor Ommerschans).
             client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellation.token)
                 .addOnSuccessListener { freshLocation ->
-                    if (freshLocation != null && System.currentTimeMillis() - freshLocation.time <= 2L * 60L * 1000L) {
+                    if (isUsableFreshLocation(freshLocation)) {
                         currentLocation = freshLocation
                         locationResolved = true
                         if (catalogLoaded) renderPhotos()
                     } else {
-                        useRecentLastLocation(client)
+                        requestFreshLocation(client)
                     }
                 }
                 .addOnFailureListener {
-                    useRecentLastLocation(client)
+                    requestFreshLocation(client)
                 }
         } catch (e: Exception) {
             Log.w("TijdBeeldOverview", "Actuele locatie kon niet worden opgehaald", e)
@@ -196,13 +203,67 @@ class PhotoOverviewActivity : Activity() {
         }
     }
 
+    private fun isUsableFreshLocation(location: Location?): Boolean =
+        location != null &&
+            location.latitude.isFinite() && location.longitude.isFinite() &&
+            location.latitude in -90.0..90.0 && location.longitude in -180.0..180.0 &&
+            System.currentTimeMillis() - location.time in 0L..2L * 60L * 1000L
+
+    // getCurrentLocation kan bij een koude start null teruggeven, ook als toestemming
+    // aanwezig is. Vraag dan kort actief één GPS/Wi-Fi-fix op voordat we de lijst tonen.
+    private fun requestFreshLocation(client: com.google.android.gms.location.FusedLocationProviderClient) {
+        if (locationResolved || locationCallback != null) return
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
+            .setMinUpdateIntervalMillis(500L)
+            .setMaxUpdates(1)
+            .build()
+        val callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                locationTimeoutHandler.removeCallbacksAndMessages(null)
+                locationCallback = null
+                client.removeLocationUpdates(this)
+                val fix = result.lastLocation
+                if (isUsableFreshLocation(fix)) {
+                    currentLocation = fix
+                    locationResolved = true
+                    if (catalogLoaded) renderPhotos()
+                } else {
+                    useRecentLastLocation(client)
+                }
+            }
+        }
+        locationCallback = callback
+        try {
+            client.requestLocationUpdates(request, callback, Looper.getMainLooper())
+                .addOnFailureListener {
+                    if (locationCallback === callback) {
+                        locationCallback = null
+                        useRecentLastLocation(client)
+                    }
+                }
+            locationTimeoutHandler.postDelayed({
+                if (locationCallback === callback && !locationResolved) {
+                    locationCallback = null
+                    client.removeLocationUpdates(callback)
+                    useRecentLastLocation(client)
+                }
+            }, 15000L)
+        } catch (e: Exception) {
+            locationCallback = null
+            Log.w("TijdBeeldOverview", "Actieve locatieaanvraag mislukt", e)
+            useRecentLastLocation(client)
+        }
+    }
+
     private fun useRecentLastLocation(client: com.google.android.gms.location.FusedLocationProviderClient) {
+        if (locationResolved) return
+        locationTimeoutHandler.removeCallbacksAndMessages(null)
         client.lastLocation
             .addOnSuccessListener { fallback ->
-                // Een oude positie is geen betrouwbare basis voor sortering. Alleen
-                // een cachepositie van maximaal 10 minuten wordt als fallback gebruikt.
+                // Alleen een cachepositie van maximaal 10 minuten is bruikbaar.
                 currentLocation = fallback?.takeIf {
-                    System.currentTimeMillis() - it.time <= 10L * 60L * 1000L
+                    System.currentTimeMillis() - it.time in 0L..10L * 60L * 1000L &&
+                        it.latitude.isFinite() && it.longitude.isFinite()
                 }
                 locationResolved = true
                 if (catalogLoaded) renderPhotos()
@@ -212,6 +273,13 @@ class PhotoOverviewActivity : Activity() {
                 locationResolved = true
                 if (catalogLoaded) renderPhotos()
             }
+    }
+
+    override fun onDestroy() {
+        locationTimeoutHandler.removeCallbacksAndMessages(null)
+        locationCallback?.let { LocationServices.getFusedLocationProviderClient(this).removeLocationUpdates(it) }
+        locationCallback = null
+        super.onDestroy()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {

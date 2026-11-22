@@ -15,6 +15,8 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -170,21 +172,46 @@ class PhotoOverviewActivity : Activity() {
 
     private fun readLastLocation() {
         try {
-            LocationServices.getFusedLocationProviderClient(this).lastLocation
-                .addOnSuccessListener { location ->
-                    currentLocation = location
-                    locationResolved = true
-                    if (catalogLoaded) renderPhotos()
+            val client = LocationServices.getFusedLocationProviderClient(this)
+            val cancellation = CancellationTokenSource()
+            // Vraag eerst een verse positie op. lastLocation kan uren oud zijn en gaf
+            // daardoor een verkeerde afstandsvolgorde (onder andere voor Ommerschans).
+            client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellation.token)
+                .addOnSuccessListener { freshLocation ->
+                    if (freshLocation != null && System.currentTimeMillis() - freshLocation.time <= 2L * 60L * 1000L) {
+                        currentLocation = freshLocation
+                        locationResolved = true
+                        if (catalogLoaded) renderPhotos()
+                    } else {
+                        useRecentLastLocation(client)
+                    }
                 }
                 .addOnFailureListener {
-                    locationResolved = true
-                    if (catalogLoaded) renderPhotos()
+                    useRecentLastLocation(client)
                 }
         } catch (e: Exception) {
-            Log.w("TijdBeeldOverview", "Locatie kon niet worden opgehaald; overzicht blijft beschikbaar", e)
+            Log.w("TijdBeeldOverview", "Actuele locatie kon niet worden opgehaald", e)
             locationResolved = true
             if (catalogLoaded) renderPhotos()
         }
+    }
+
+    private fun useRecentLastLocation(client: com.google.android.gms.location.FusedLocationProviderClient) {
+        client.lastLocation
+            .addOnSuccessListener { fallback ->
+                // Een oude positie is geen betrouwbare basis voor sortering. Alleen
+                // een cachepositie van maximaal 10 minuten wordt als fallback gebruikt.
+                currentLocation = fallback?.takeIf {
+                    System.currentTimeMillis() - it.time <= 10L * 60L * 1000L
+                }
+                locationResolved = true
+                if (catalogLoaded) renderPhotos()
+            }
+            .addOnFailureListener {
+                currentLocation = null
+                locationResolved = true
+                if (catalogLoaded) renderPhotos()
+            }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -201,13 +228,17 @@ class PhotoOverviewActivity : Activity() {
     private fun renderPhotos() {
         content.removeAllViews()
         val origin = currentLocation
+        // Sorteer de volledige catalogus op de berekende afstand vanaf de actuele gebruikerslocatie.
+        // Geen enkele foto krijgt een vaste positie; de volgorde volgt volledig uit de coördinaten.
         val sorted = if (origin != null) {
             photos.sortedBy { photo ->
                 val result = FloatArray(1)
                 Location.distanceBetween(origin.latitude, origin.longitude, photo.objectLat, photo.objectLng, result)
                 result[0]
             }
-        } else photos.sortedBy { it.title.lowercase(Locale.ROOT) }
+        } else {
+            photos.sortedBy { it.title.lowercase(Locale.ROOT) }
+        }
 
         if (origin == null) {
             addMessage("Locatie niet beschikbaar. Geef locatietoestemming om de foto's op afstand te sorteren.")
@@ -276,7 +307,13 @@ class PhotoOverviewActivity : Activity() {
 
     private fun openPhoto(photo: CatalogPhoto) {
         if (photo.title.trim() == OMMERSCHANS_PHOTO_TITLE) {
-            startActivity(Intent(this, ModelArActivity::class.java))
+            startActivity(Intent(this, ModelArActivity::class.java).apply {
+                putExtra("photoId", photo.id)
+                putExtra("photoTitle", photo.title)
+                putExtra("photoImageUrl", photo.imageUrl)
+                putExtra("photoObjectLat", photo.objectLat)
+                putExtra("photoObjectLng", photo.objectLng)
+            })
             return
         }
         startActivity(Intent(this, MainActivity::class.java).apply {
