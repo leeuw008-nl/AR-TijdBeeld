@@ -27,6 +27,7 @@ android {
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
+            manifestPlaceholders["arcoreApiKey"] = System.getenv("ARCORE_API_KEY") ?: ""
             // Reuse one cached debug keystore so later APKs remain valid updates.
             signingConfig = signingConfigs.getByName("persistentDiagnostic")
         }
