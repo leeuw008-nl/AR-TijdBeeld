@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes, feature/ommerschans-photo-georef, fix/ommerschans-topokaart-footprint, fix/persistent-admin-session-and-inner-wall, fix/backup-export-import-from-build-139, release/werkende-versie-alle-6-punten ]
   pull_request:
-    branches: [ main, release/werkende-versie-alle-6-punten ]
+    branches: [ main, release/werkende-versie-alle-6-punten, stable/build-282-perfect ]
   workflow_dispatch:
 
 permissions:
