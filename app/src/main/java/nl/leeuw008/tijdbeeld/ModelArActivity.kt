@@ -85,7 +85,7 @@ class ModelArActivity : Activity() {
             var previousSpan = 0f
             var previousCenterX = 0f
             var previousCenterY = 0f
-            var pinchActive = false
+            
             fun span(event: MotionEvent): Float {
                 if (event.pointerCount < 2) return 0f
                 val dx = event.getX(0) - event.getX(1)
@@ -99,8 +99,7 @@ class ModelArActivity : Activity() {
                         previousX = event.x
                         previousY = event.y
                         previousSpan = 0f
-                        pinchActive = false
-                        true
+                                                true
                     }
                     MotionEvent.ACTION_POINTER_DOWN -> {
                         previousSpan = span(event)
@@ -115,12 +114,17 @@ class ModelArActivity : Activity() {
                             val centerX = (event.getX(0) + event.getX(1)) / 2f
                             val centerY = (event.getY(0) + event.getY(1)) / 2f
                             if (previousSpan > 0f && currentSpan > 0f) {
-                                if (!pinchActive && kotlin.math.abs(currentSpan - previousSpan) > dp(8).toFloat()) pinchActive = true
-                                if (pinchActive) {
+                                // Tweevingerbeweging verplaatst het model; afstandsverandering zoomt tegelijk.
+                                val spanDelta = currentSpan - previousSpan
+                                if (kotlin.math.abs(spanDelta) > 0.35f) {
                                     renderer.zoomStandalone(currentSpan / previousSpan)
-                                } else {
-                                    renderer.panStandalone(centerX - previousCenterX, centerY - previousCenterY, glView.width, glView.height)
                                 }
+                                renderer.panStandalone(
+                                    centerX - previousCenterX,
+                                    centerY - previousCenterY,
+                                    glView.width,
+                                    glView.height
+                                )
                             }
                             previousSpan = currentSpan
                             previousCenterX = centerX
@@ -180,7 +184,7 @@ class ModelArActivity : Activity() {
                 gravity = Gravity.CENTER_HORIZONTAL
             }
             val sensitivitySlider = SeekBar(this).apply {
-                max = 500
+                max = 2000
                 progress = 100
                 setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
