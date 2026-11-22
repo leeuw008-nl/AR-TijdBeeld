@@ -25,11 +25,15 @@ class AdminLoginActivity : Activity() {
         // Hergebruik de lokaal opgeslagen beheersessie na app-herstart of terugkeer
         // naar het inlogscherm. De server controleert de token zodra Beheer opent.
         val savedToken = prefs.getString("admin_session_token", "").orEmpty()
-        if (savedToken.isNotBlank()) {
+        val savedExpiry = prefs.getLong("admin_session_expires_at", 0L)
+        if (savedToken.isNotBlank() && (savedExpiry == 0L || savedExpiry > System.currentTimeMillis())) {
             startActivity(Intent(this, AdminActivity::class.java)
                 .putExtra("admin_authenticated", true))
             finish()
             return
+        }
+        if (savedToken.isNotBlank()) {
+            prefs.edit().remove("admin_session_token").remove("admin_session_expires_at").commit()
         }
 
         buildLoginScreen()
@@ -225,7 +229,7 @@ class AdminLoginActivity : Activity() {
                         val sessionSaved = prefs.edit()
                             .putString("admin_email", email)
                             .putString("admin_session_token", token)
-                            .putLong("admin_session_expires_at", 0L) // Worker-sessies verlopen niet automatisch.
+                            .putLong("admin_session_expires_at", System.currentTimeMillis() + (expiresIn.takeIf { it > 0L } ?: 30L * 24L * 60L * 60L) * 1000L)
                             .commit()
                         if (sessionSaved) {
                             passwordInput.text.clear()
