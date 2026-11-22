@@ -26,14 +26,45 @@ class BackupActivity : Activity() {
         super.onCreate(savedInstanceState)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(24, 28, 24, 24)
             setBackgroundColor(0xFFF3F6F9.toInt())
         }
-        root.addView(TextView(this).apply {
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(6), dp(14), dp(6))
+            setBackgroundColor(0xFF1769AA.toInt())
+        }
+        header.addView(TextView(this).apply {
+            text = "‹"
+            textSize = 34f
+            gravity = android.view.Gravity.CENTER
+            setTextColor(0xFFFFFFFF.toInt())
+            contentDescription = "Terug"
+            setOnClickListener { finish() }
+        }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        header.addView(TextView(this).apply {
+            text = "v" + (packageManager.getPackageInfo(packageName, 0).versionName ?: "?")
+            textSize = 13f
+            setTextColor(0xFFFFFFFF.toInt())
+            contentDescription = "App-versie"
+        })
+        header.addView(TextView(this).apply {
+            text = "AR-TijdBeeld"
+            textSize = 21f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(0xFFFFFFFF.toInt())
+            setPadding(dp(10), 0, 0, 0)
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        root.addView(header)
+        val page = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(20), dp(24), dp(24))
+        }
+        page.addView(TextView(this).apply {
             text = "Back-up en herstel"
             textSize = 24f
             setTextColor(0xFF1769AA.toInt())
-            setPadding(0, 0, 0, 16)
+            setPadding(0, 0, 0, dp(16))
         })
         root.addView(TextView(this).apply {
             text = "Een back-up bevat de lokale instellingen en fotogegevens, interne bestanden en databases. Beheersessies worden bewust niet meegenomen. Herstellen vervangt de overeenkomstige lokale gegevens door de inhoud van de gekozen back-up."
@@ -49,14 +80,11 @@ class BackupActivity : Activity() {
             text = "Back-up importeren en herstellen"
             setOnClickListener { chooseBackup() }
         }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 12 })
-        root.addView(Button(this).apply {
-            text = "Terug"
-            setOnClickListener { finish() }
-        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 12 })
+        root.addView(page, LinearLayout.LayoutParams(-1, -1))
         setContentView(root)
     }
 
-    private fun createBackup() {
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()\n\n    private fun createBackup() {
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "application/zip"
