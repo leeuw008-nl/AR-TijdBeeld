@@ -172,6 +172,14 @@ class ModelArActivity : Activity() {
             setOnClickListener { finish() }
         }
         header.addView(backButton, LinearLayout.LayoutParams(dp(56), dp(56)))
+        header.addView(TextView(this).apply {
+            val version = packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
+            text = "v$version"
+            textSize = 12f
+            setTextColor(0xFFFFFFFF.toInt())
+            contentDescription = "App-versie $version"
+            setPadding(0, 0, dp(8), 0)
+        }, LinearLayout.LayoutParams(-2, -2))
         header.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
         root.addView(header, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
 
