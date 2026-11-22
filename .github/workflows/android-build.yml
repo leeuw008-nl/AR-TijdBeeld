@@ -43,6 +43,8 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
           test -s ~/.android/debug.keystore
+          keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey | grep -qi '2E:BB:7D:A5:20:33:26:E6:C5:AA:54:74:93:E0:D0:3F:25:8E:A9:6E'
+
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
