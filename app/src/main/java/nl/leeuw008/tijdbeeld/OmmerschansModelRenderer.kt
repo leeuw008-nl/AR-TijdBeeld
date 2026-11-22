@@ -21,7 +21,7 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
 /** Minimal GLB 2.0 triangle renderer. Geometry is kept in model metres. */
-class OmmerschansModelRenderer(private val context: Context, private val status: (String) -> Unit, private val standaloneMode: Boolean = false) : GLSurfaceView.Renderer {
+class OmmerschansModelRenderer(private val context: Context, private val status: (String) -> Unit, private val standaloneMode: Boolean = false, private val modelUrl: String? = null, private val modelAsset: String = "ommerschans.glb") : GLSurfaceView.Renderer {
     @Volatile private var session: Session? = null
     @Volatile private var lastStatus = ""
     @Volatile private var modelData: List<Part>? = null
@@ -399,8 +399,12 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         loadStarted = true
         Thread {
             try {
-                report("Lokaal 3D-modelbestand wordt geladen…")
-                val bytes = context.assets.open("ommerschans.glb").use { it.readBytes() }
+                report(if (modelUrl.isNullOrBlank()) "Lokaal 3D-modelbestand wordt geladen…" else "3D-model wordt opgehaald…")
+                val bytes = if (!modelUrl.isNullOrBlank()) {
+                    val connection = java.net.URL(modelUrl).openConnection().apply { connectTimeout = 12000; readTimeout = 30000 }
+                    connection.getInputStream().use { it.readBytes() }
+                } else context.assets.open(modelAsset).use { it.readBytes() }
+                require(bytes.size <= 80 * 1024 * 1024) { "3D-model is groter dan 80 MB" }
                 val parsed = parseGlb(bytes)
                 modelData = parsed
                 report("3D-model geladen: ${parsed.size} onderdelen")
