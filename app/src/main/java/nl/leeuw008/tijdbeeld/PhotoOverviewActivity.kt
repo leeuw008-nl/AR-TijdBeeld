@@ -88,6 +88,13 @@ class PhotoOverviewActivity : Activity() {
             setTypeface(null, android.graphics.Typeface.BOLD)
             setTextColor(0xFFFFFFFF.toInt())
         }, LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(TextView(this).apply {
+            val version = packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
+            text = "v$version"
+            textSize = 12f
+            setTextColor(0xFFFFFFFF.toInt())
+            contentDescription = "App-versie $version"
+        }, LinearLayout.LayoutParams(-2, -2))
         root.addView(header)
 
         val pageContent = LinearLayout(this).apply {
