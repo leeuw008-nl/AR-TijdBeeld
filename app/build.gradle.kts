@@ -11,8 +11,8 @@ android {
         applicationId = "nl.leeuw008.tijdbeeld.diagnose32stable"
         minSdk = 24
         targetSdk = 32
-        versionCode = 4
-        versionName = "0.1.4"
+        versionCode = 5
+        versionName = "0.1.5"
         // ARCore Geospatial requires the Android API key in application metadata.
         manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
         manifestPlaceholders["arcoreApiKey"] = System.getenv("ARCORE_API_KEY") ?: ""
