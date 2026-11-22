@@ -80,18 +80,29 @@ async function verifyPassword(password, encoded) {
 }
 
 function validCatalog(value) {
-  if (!value || value.schemaVersion !== 1 || !Array.isArray(value.photos) || value.photos.length > 2000) {
+  if (!value || ![1, 2].includes(value.schemaVersion) || !Array.isArray(value.photos) || value.photos.length > 2000) {
     return false;
   }
-  return value.photos.every((photo) =>
-    photo && typeof photo.id === "string" && photo.id.length > 0 &&
-    typeof photo.title === "string" && photo.title.length > 0 &&
-    typeof photo.imageUrl === "string" && photo.imageUrl.startsWith("https://") &&
-    Number.isFinite(photo.objectLat) && photo.objectLat >= -90 && photo.objectLat <= 90 &&
-    Number.isFinite(photo.objectLng) && photo.objectLng >= -180 && photo.objectLng <= 180 &&
-    Number.isFinite(photo.cameraLat) && photo.cameraLat >= -90 && photo.cameraLat <= 90 &&
-    Number.isFinite(photo.cameraLng) && photo.cameraLng >= -180 && photo.cameraLng <= 180
-  );
+  return value.photos.every((photo) => {
+    if (!photo || typeof photo.id !== "string" || !photo.id ||
+        typeof photo.title !== "string" || !photo.title ||
+        !Number.isFinite(photo.objectLat) || photo.objectLat < -90 || photo.objectLat > 90 ||
+        !Number.isFinite(photo.objectLng) || photo.objectLng < -180 || photo.objectLng > 180) return false;
+    const type = photo.type || "PHOTO";
+    if (type === "MODEL") {
+      if (!(typeof photo.modelUrl === "string" && photo.modelUrl.startsWith("https://")) &&
+          !(typeof photo.modelAsset === "string" && /^[a-zA-Z0-9._-]+\\.glb$/i.test(photo.modelAsset))) return false;
+      if (!["OBJECT", "TEST"].includes(photo.displayLocation || "OBJECT")) return false;
+      if ((photo.displayLocation || "OBJECT") === "TEST" &&
+          (!Number.isFinite(photo.testLat) || photo.testLat < -90 || photo.testLat > 90 ||
+           !Number.isFinite(photo.testLng) || photo.testLng < -180 || photo.testLng > 180)) return false;
+      return true;
+    }
+    return type === "PHOTO" &&
+      typeof photo.imageUrl === "string" && photo.imageUrl.startsWith("https://") &&
+      Number.isFinite(photo.cameraLat) && photo.cameraLat >= -90 && photo.cameraLat <= 90 &&
+      Number.isFinite(photo.cameraLng) && photo.cameraLng >= -180 && photo.cameraLng <= 180;
+  });
 }
 
 async function getSession(request, env) {
