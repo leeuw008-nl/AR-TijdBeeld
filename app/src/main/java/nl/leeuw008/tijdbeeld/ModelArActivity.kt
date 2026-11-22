@@ -99,13 +99,12 @@ class ModelArActivity : Activity() {
                         previousX = event.x
                         previousY = event.y
                         previousSpan = 0f
-                                                true
+                        true
                     }
                     MotionEvent.ACTION_POINTER_DOWN -> {
                         previousSpan = span(event)
                         previousCenterX = (event.getX(0) + event.getX(1)) / 2f
                         previousCenterY = (event.getY(0) + event.getY(1)) / 2f
-                        pinchActive = false
                         true
                     }
                     MotionEvent.ACTION_MOVE -> {
