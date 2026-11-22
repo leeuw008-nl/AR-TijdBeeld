@@ -52,6 +52,14 @@ jobs:
           path: ~/.android/debug.keystore
           key: tijdbeeld-diagnostic-signing-key-v2
 
+      - name: Verify exact build 239 signing certificate
+        run: |
+          set -euo pipefail
+          ACTUAL_SHA1="$(keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey | awk -F': ' '/SHA1:/{gsub(":","",$2); print tolower($2); exit}')"
+          EXPECTED_SHA1="3ab19be147dc97b092b3f57b146bb514992efb9e"
+          echo "Build 239 signing certificate SHA-1: $ACTUAL_SHA1"
+          test "$ACTUAL_SHA1" = "$EXPECTED_SHA1" || { echo "::error::Signing key differs from build 239; refusing to create a non-updatable APK."; exit 1; }
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -102,13 +110,13 @@ jobs:
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
           "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='4'|application-label:'AR-TijdBeeld'"
 
-      - name: Download exact build 139 APK for update test
+      - name: Download exact build 239 APK for update test
         uses: actions/download-artifact@v4
         with:
           name: AR-TijdBeeld
           path: baseline
           repository: leeuw008-nl/AR-TijdBeeld
-          run-id: 44535485878
+          run-id: 45044950040
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload AR-TijdBeeld APK
@@ -119,7 +127,7 @@ jobs:
           if-no-files-found: error
           retention-days: 31
 
-      - name: Test update installation over build 139 on Android 12
+      - name: Test update installation over build 239 on Android 12
         uses: reactivecircus/android-emulator-runner@v2
         env:
           ANDROID_I_WANT_MY_TCG: yes
