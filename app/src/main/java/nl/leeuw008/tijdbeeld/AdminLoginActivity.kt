@@ -40,18 +40,49 @@ class AdminLoginActivity : Activity() {
         fun dp(value: Int) = (value * density).toInt()
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(dp(24), dp(28), dp(24), dp(24))
             setBackgroundColor(0xFFF3F6F9.toInt())
         }
-        root.addView(TextView(this).apply {
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(6), dp(14), dp(6))
+            setBackgroundColor(0xFF1769AA.toInt())
+        }
+        header.addView(TextView(this).apply {
+            text = "‹"
+            textSize = 34f
+            gravity = Gravity.CENTER
+            setTextColor(0xFFFFFFFF.toInt())
+            contentDescription = "Terug"
+            setOnClickListener { finish() }
+        }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        header.addView(TextView(this).apply {
+            text = "AR-TijdBeeld"
+            textSize = 21f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(0xFFFFFFFF.toInt())
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(TextView(this).apply {
+            val version = packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
+            text = "v$version"
+            textSize = 12f
+            setTextColor(0xFFFFFFFF.toInt())
+            contentDescription = "App-versie $version"
+        })
+        root.addView(header, LinearLayout.LayoutParams(-1, -2))
+        val page = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(24), dp(28), dp(24), dp(24))
+        }
+        page.addView(TextView(this).apply {
             text = "AR-TijdBeeld • Beheerder inloggen"
             textSize = 23f
             setTextColor(0xFF174A7E.toInt())
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, dp(24))
         })
-        root.addView(TextView(this).apply {
+        page.addView(TextView(this).apply {
             text = "E-mailadres"
             textSize = 14f
             setTextColor(0xFF425466.toInt())
@@ -63,8 +94,8 @@ class AdminLoginActivity : Activity() {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
             setText(prefs.getString("admin_email", "leeuw008@gmail.com") ?: "leeuw008@gmail.com")
         }
-        root.addView(emailInput, LinearLayout.LayoutParams(-1, dp(50)).apply { bottomMargin = dp(14) })
-        root.addView(TextView(this).apply {
+        page.addView(emailInput, LinearLayout.LayoutParams(-1, dp(50)).apply { bottomMargin = dp(14) })
+        page.addView(TextView(this).apply {
             text = "Wachtwoord"
             textSize = 14f
             setTextColor(0xFF425466.toInt())
@@ -75,20 +106,21 @@ class AdminLoginActivity : Activity() {
             textSize = 16f
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
-        root.addView(passwordInput, LinearLayout.LayoutParams(-1, dp(50)).apply { bottomMargin = dp(20) })
-        root.addView(Button(this).apply {
+        page.addView(passwordInput, LinearLayout.LayoutParams(-1, dp(50)).apply { bottomMargin = dp(20) })
+        page.addView(Button(this).apply {
             text = "Wachtwoord vergeten?"
             setOnClickListener { showForgotPasswordDialog() }
         }, LinearLayout.LayoutParams(-1, dp(46)).apply { bottomMargin = dp(8) })
-        root.addView(Button(this).apply {
+        page.addView(Button(this).apply {
             text = "Inloggen"
             textSize = 16f
             setOnClickListener { verifyCredentials() }
         }, LinearLayout.LayoutParams(-1, dp(54)))
-        root.addView(Button(this).apply {
+        page.addView(Button(this).apply {
             text = "Terug"
             setOnClickListener { finish() }
         }, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(10) })
+        root.addView(page, LinearLayout.LayoutParams(-1, -1))
         setContentView(root)
     }
 
