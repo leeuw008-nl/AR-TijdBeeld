@@ -201,17 +201,17 @@ class PhotoOverviewActivity : Activity() {
     private fun renderPhotos() {
         content.removeAllViews()
         val origin = currentLocation
-        val ommerschans = photos.filter { it.title.trim() == OMMERSCHANS_PHOTO_TITLE }
-        val otherPhotos = photos.filterNot { it.title.trim() == OMMERSCHANS_PHOTO_TITLE }
-        val sortedOthers = if (origin != null) {
-            otherPhotos.sortedBy { photo ->
+        // Sorteer de volledige catalogus op de berekende afstand vanaf de actuele gebruikerslocatie.
+        // Geen enkele foto krijgt een vaste positie; de volgorde volgt volledig uit de coördinaten.
+        val sorted = if (origin != null) {
+            photos.sortedBy { photo ->
                 val result = FloatArray(1)
                 Location.distanceBetween(origin.latitude, origin.longitude, photo.objectLat, photo.objectLng, result)
                 result[0]
             }
-        } else otherPhotos.sortedBy { it.title.lowercase(Locale.ROOT) }
-        // De Ommerschans is de verste locatie in de huidige fotoselectie: altijd als laatste tonen.
-        val sorted = sortedOthers + ommerschans
+        } else {
+            photos.sortedBy { it.title.lowercase(Locale.ROOT) }
+        }
 
         if (origin == null) {
             addMessage("Locatie niet beschikbaar. Geef locatietoestemming om de foto's op afstand te sorteren.")
