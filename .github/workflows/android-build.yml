@@ -76,7 +76,11 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: gradle --no-daemon :app:assembleDebug
+          ARCORE_API_KEY: ${{ secrets.ARCORE_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$ARCORE_API_KEY" || { echo "::error::GitHub Actions secret ARCORE_API_KEY is missing; Geospatial authorization cannot work without it."; exit 1; }
+          gradle --no-daemon :app:assembleDebug
 
       - name: Prepare AR-TijdBeeld APK
         run: |
