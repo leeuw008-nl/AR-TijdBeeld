@@ -29,28 +29,31 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Restore persistent diagnostic signing key
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: tijdbeeld-diagnostic-signing-key-v2
-
-      - name: Create diagnostic signing key on first build
+      - name: Restore original Android signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          mkdir -p ~/.android
-          if [ ! -s ~/.android/debug.keystore ]; then
-            keytool -genkeypair -v -keystore ~/.android/debug.keystore \
-              -storepass android -alias androiddebugkey -keypass android \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
+          set -euo pipefail
+          test -n "$ANDROID_KEYSTORE_BASE64" || { echo "::error::ANDROID_KEYSTORE_BASE64 is empty"; exit 1; }
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo "::error::ANDROID_KEYSTORE_PASSWORD is empty"; exit 1; }
+          test -n "$ANDROID_KEY_ALIAS" || { echo "::error::ANDROID_KEY_ALIAS is empty"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/tijdbeeld-signing"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/tijdbeeld-signing/original.keystore"
+          test -s "$RUNNER_TEMP/tijdbeeld-signing/original.keystore"
+          keytool -list -v \
+            -keystore "$RUNNER_TEMP/tijdbeeld-signing/original.keystore" \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+            -alias "$ANDROID_KEY_ALIAS" > "$RUNNER_TEMP/tijdbeeld-signing/key-info.txt"
+          ACTUAL_SHA1="$(awk -F': ' '/SHA1:/{gsub(":","",$2); print tolower($2); exit}' "$RUNNER_TEMP/tijdbeeld-signing/key-info.txt")"
+          EXPECTED_SHA1="2459666eaa0479748efd255bcb705a488c8caeca"
+          echo "Original keystore certificate SHA-1: $ACTUAL_SHA1"
+          if [ "$ACTUAL_SHA1" != "$EXPECTED_SHA1" ]; then
+            echo "::error::The configured keystore does not match build 231. Refusing to create an APK that cannot update it."
+            exit 1
           fi
-          test -s ~/.android/debug.keystore
-
-      - name: Save persistent diagnostic signing key
-        uses: actions/cache/save@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: tijdbeeld-diagnostic-signing-key-v2
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/tijdbeeld-signing/original.keystore" >> "$GITHUB_ENV"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -115,7 +118,7 @@ jobs:
           if-no-files-found: error
           retention-days: 31
 
-      - name: Test update installation over build 139 on Android 12
+      - name: Test update installation over build 231 on Android 12
         uses: reactivecircus/android-emulator-runner@v2
         env:
           ANDROID_I_WANT_MY_TCG: yes
@@ -141,5 +144,3 @@ jobs:
             timeout 120s adb install -r dist/AR-TijdBeeld.apk
             timeout 30s adb shell pm path nl.leeuw008.tijdbeeld.diagnose32stable
             timeout 60s adb shell monkey -p nl.leeuw008.tijdbeeld.diagnose32stable 1
-
-
