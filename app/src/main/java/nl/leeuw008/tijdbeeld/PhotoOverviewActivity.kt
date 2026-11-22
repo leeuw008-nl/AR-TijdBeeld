@@ -149,7 +149,7 @@ class PhotoOverviewActivity : Activity() {
                         objectType, modelUrl, modelAsset,
                         item.optDouble("testLat", Double.NaN), item.optDouble("testLng", Double.NaN),
                         item.optString("displayLocation", "OBJECT")
-                    )))
+                    ))
                 }
                 if (loaded.isEmpty()) throw IllegalStateException("Geen geldige gepubliceerde foto's gevonden")
                 runOnUiThread {
