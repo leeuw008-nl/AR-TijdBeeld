@@ -78,12 +78,16 @@ class ModelArActivity : Activity() {
             maxLines = 3
             setTextIsSelectable(true)
         }
-        renderer = OmmerschansModelRenderer(this, { message ->
-            runOnUiThread { status.text = photoTitle + "\n" + message }
-        }, standaloneMode = standalonePreview).apply {
+        renderer = OmmerschansModelRenderer(
+            this,
+            { message -> runOnUiThread { status.text = photoTitle + "\n" + message } },
+            standaloneMode = standalonePreview,
+            modelUrl = intent.getStringExtra("modelUrl")?.takeIf { it.isNotBlank() },
+            modelAsset = intent.getStringExtra("modelAsset")?.takeIf { it.isNotBlank() } ?: "ommerschans.glb"
+        ).apply {
             if (!standalonePreview) setGeoTarget(
-                intent.getDoubleExtra("objectLat", 52.58737559898257),
-                intent.getDoubleExtra("objectLng", 6.391727308884152)
+                intent.getDoubleExtra("targetLat", intent.getDoubleExtra("objectLat", 52.58737559898257)),
+                intent.getDoubleExtra("targetLng", intent.getDoubleExtra("objectLng", 6.391727308884152))
             )
         }
         glView = GLSurfaceView(this).apply {
