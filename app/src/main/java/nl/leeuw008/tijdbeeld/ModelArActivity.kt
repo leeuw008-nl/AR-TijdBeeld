@@ -33,6 +33,9 @@ class ModelArActivity : Activity() {
     private var installRequested = false
     private var permissionRequested = false
     private lateinit var sensitivityControls: LinearLayout
+    private var pivotXProgress = 50
+    private var pivotYProgress = 50
+    private var pivotZProgress = 50
     private val uiHandler = Handler(Looper.getMainLooper())
     private val hideSensitivityControls = Runnable {
         if (::sensitivityControls.isInitialized) {
@@ -274,6 +277,11 @@ class ModelArActivity : Activity() {
             zoomRow.addView(controlButton("+", { renderer.zoomStandalone(1.25f) }),
                 LinearLayout.LayoutParams(dp(56), dp(38)).apply { leftMargin = dp(4) })
             controlPanel.addView(zoomRow)
+            controlPanel.addView(controlButton("Draaipunt verplaatsen") {
+                showPivotDialog()
+            }, LinearLayout.LayoutParams(dp(220), dp(38)).apply {
+                topMargin = dp(5)
+            })
             root.addView(controlPanel, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
                 bottomMargin = dp(10)
             })
@@ -282,6 +290,52 @@ class ModelArActivity : Activity() {
         root.requestFocus()
         setContentView(root)
         requestPermissionsIfNeeded()
+    }
+
+    private fun showPivotDialog() {
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), dp(4))
+        }
+        fun addAxis(label: String, initial: Int, update: (Int) -> Unit) {
+            val valueLabel = TextView(this).apply {
+                text = "$label: $initial%"
+                textSize = 14f
+                setTextColor(0xFF243746.toInt())
+            }
+            val slider = SeekBar(this).apply {
+                max = 100
+                progress = initial
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                        valueLabel.text = "$label: $progress%"
+                        update(progress)
+                        renderer.setStandalonePivot(pivotXProgress, pivotYProgress, pivotZProgress)
+                    }
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+                })
+            }
+            content.addView(valueLabel, LinearLayout.LayoutParams(-1, -2))
+            content.addView(slider, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = dp(8)
+            })
+        }
+        addAxis("Links/rechts (X)", pivotXProgress) { pivotXProgress = it }
+        addAxis("Hoogte (Y)", pivotYProgress) { pivotYProgress = it }
+        addAxis("Voor/achter (Z)", pivotZProgress) { pivotZProgress = it }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Draaipunt van het 3D-model")
+            .setMessage("Verplaats het draaipunt binnen het model. 50% op alle assen is het oorspronkelijke middelpunt.")
+            .setView(content)
+            .setPositiveButton("Gereed", null)
+            .setNeutralButton("Herstel midden") { _, _ ->
+                pivotXProgress = 50
+                pivotYProgress = 50
+                pivotZProgress = 50
+                renderer.setStandalonePivot(50, 50, 50)
+            }
+            .show()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
