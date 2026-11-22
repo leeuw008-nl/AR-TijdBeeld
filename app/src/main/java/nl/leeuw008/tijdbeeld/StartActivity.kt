@@ -63,7 +63,8 @@ class StartActivity : Activity() {
     // verlengt de lokale vervaldatum. Andere schermen en fotogegevens blijven onaangeraakt.
     private fun refreshAdminSessionInBackground() {
         val token = prefs.getString("admin_session_token", "").orEmpty()
-        if (token.isBlank() || sessionRefreshInFlight) return
+        val nextCheckAt = prefs.getLong("admin_session_expires_at", 0L)
+        if (token.isBlank() || sessionRefreshInFlight || nextCheckAt > System.currentTimeMillis() + 12L * 60L * 60L * 1000L) return
         sessionRefreshInFlight = true
         Thread {
             var connection: HttpURLConnection? = null
@@ -84,7 +85,7 @@ class StartActivity : Activity() {
                     if (prefs.getString("admin_session_token", "").orEmpty() == token) {
                         prefs.edit().putLong(
                             "admin_session_expires_at",
-                            if (persistent || expiresIn <= 0L) 0L else System.currentTimeMillis() + expiresIn * 1000L
+                            if (persistent || expiresIn <= 0L) System.currentTimeMillis() + 24L * 60L * 60L * 1000L else System.currentTimeMillis() + expiresIn * 1000L
                         ).apply()
                     }
                 }
