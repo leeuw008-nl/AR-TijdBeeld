@@ -15,6 +15,8 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -165,32 +167,52 @@ class PhotoOverviewActivity : Activity() {
             )
             return
         }
-        readLastLocation()
+        readCurrentLocation()
     }
 
-    private fun readLastLocation() {
+    private fun readCurrentLocation() {
         try {
-            LocationServices.getFusedLocationProviderClient(this).lastLocation
-                .addOnSuccessListener { location ->
-                    currentLocation = location
-                    locationResolved = true
-                    if (catalogLoaded) renderPhotos()
+            val client = LocationServices.getFusedLocationProviderClient(this)
+            val cancellation = CancellationTokenSource()
+            client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellation.token)
+                .addOnSuccessListener { fresh ->
+                    if (fresh != null && System.currentTimeMillis() - fresh.time <= 2L * 60L * 1000L) {
+                        currentLocation = fresh
+                        finishLocationResolution()
+                    } else {
+                        readRecentFallback(client)
+                    }
                 }
                 .addOnFailureListener {
-                    locationResolved = true
-                    if (catalogLoaded) renderPhotos()
+                    Log.w("TijdBeeldOverview", "Actuele locatie niet beschikbaar; controleer recente locatie")
+                    readRecentFallback(client)
                 }
         } catch (e: Exception) {
-            Log.w("TijdBeeldOverview", "Locatie kon niet worden opgehaald; overzicht blijft beschikbaar", e)
-            locationResolved = true
-            if (catalogLoaded) renderPhotos()
+            Log.w("TijdBeeldOverview", "Actuele locatie kon niet worden opgehaald", e)
+            finishLocationResolution()
         }
+    }
+
+    private fun readRecentFallback(client: com.google.android.gms.location.FusedLocationProviderClient) {
+        client.lastLocation
+            .addOnSuccessListener { recent ->
+                currentLocation = recent?.takeIf {
+                    System.currentTimeMillis() - it.time <= 2L * 60L * 1000L
+                }
+                finishLocationResolution()
+            }
+            .addOnFailureListener { finishLocationResolution() }
+    }
+
+    private fun finishLocationResolution() {
+        locationResolved = true
+        if (catalogLoaded) renderPhotos()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == LOCATION_PERMISSION_REQUEST) {
-            if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) readLastLocation()
+            if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) readCurrentLocation()
             else {
                 locationResolved = true
                 if (catalogLoaded) renderPhotos()
