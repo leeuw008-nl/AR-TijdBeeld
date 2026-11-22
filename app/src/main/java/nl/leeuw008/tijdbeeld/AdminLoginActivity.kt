@@ -246,7 +246,7 @@ class AdminLoginActivity : Activity() {
                         val sessionSaved = prefs.edit()
                             .putString("admin_email", email)
                             .putString("admin_session_token", token)
-                            .putLong("admin_session_expires_at", System.currentTimeMillis() + 30L * 24L * 60L * 60L * 1000L) // Lokale sessiecontrole na 30 dagen; server bewaart de token zonder KV-vervaldatum.
+                            .putLong("admin_session_expires_at", System.currentTimeMillis() + 365L * 24L * 60L * 60L * 1000L) // Lokale sessie blijft maximaal een jaar beschikbaar; server bewaart de token tot uitloggen of wachtwoordreset.
                             .commit()
                         if (sessionSaved) {
                             passwordInput.text.clear()
