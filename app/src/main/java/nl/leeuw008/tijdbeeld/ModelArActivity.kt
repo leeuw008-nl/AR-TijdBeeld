@@ -254,6 +254,21 @@ class ModelArActivity : Activity() {
         requestPermissionsIfNeeded()
     }
 
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (standalonePreview && event.action == KeyEvent.ACTION_DOWN) {
+            val step = if (event.isShiftPressed) 18f else 7f
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_A -> { renderer.rotateStandalone(-step, 0f); return true }
+                KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_D -> { renderer.rotateStandalone(step, 0f); return true }
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W -> { renderer.rotateStandalone(0f, -step); return true }
+                KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_S -> { renderer.rotateStandalone(0f, step); return true }
+                KeyEvent.KEYCODE_PLUS, KeyEvent.KEYCODE_EQUALS, KeyEvent.KEYCODE_PAGE_UP -> { renderer.zoomStandalone(1.18f); return true }
+                KeyEvent.KEYCODE_MINUS, KeyEvent.KEYCODE_PAGE_DOWN -> { renderer.zoomStandalone(0.85f); return true }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
 
     private fun requestPermissionsIfNeeded() {
