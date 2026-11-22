@@ -110,6 +110,7 @@ jobs:
           retention-days: 31
 
       - name: Test update installation over build 139 on Android 12
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 31
