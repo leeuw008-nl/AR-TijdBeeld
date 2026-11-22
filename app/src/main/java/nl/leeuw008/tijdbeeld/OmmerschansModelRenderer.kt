@@ -109,14 +109,14 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     fun setDisplayRotation(rotation: Int) { displayRotation = rotation; geometryChanged = true }
 
     fun setZoomSensitivity(value: Float) {
-        if (standaloneMode && value.isFinite()) standaloneZoomSensitivity = value.coerceIn(0f, 5f)
+        if (standaloneMode && value.isFinite()) standaloneZoomSensitivity = value.coerceIn(0f, 20f)
     }
 
     /** Move the model in the viewing plane with a two-finger drag. */
     fun panStandalone(deltaX: Float, deltaY: Float, viewportWidth: Int, viewportHeight: Int) {
         if (!standaloneMode || !deltaX.isFinite() || !deltaY.isFinite()) return
         val viewport = minOf(viewportWidth, viewportHeight).coerceAtLeast(1).toFloat()
-        val sensitivity = 0.15f + standaloneZoomSensitivity * 1.70f
+        val sensitivity = 0.15f + kotlin.math.sqrt(standaloneZoomSensitivity) * 1.70f
         val worldPerPixel = standaloneCameraDistance / viewport * 0.35f * sensitivity
         standaloneOffsetX += deltaX * worldPerPixel
         standaloneOffsetY -= deltaY * worldPerPixel
@@ -128,7 +128,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         val zoomDamping = (standaloneCameraDistance / 7.5f).coerceIn(0.08f, 1f)
         // The on-screen sensitivity control affects both pinch zoom and drag rotation.
         // 50% keeps the original drag speed; lower values allow precise movement when zoomed in.
-        val userSensitivity = 0.15f + standaloneZoomSensitivity * 1.70f
+        val userSensitivity = 0.15f + kotlin.math.sqrt(standaloneZoomSensitivity) * 1.70f
         val dragScale = 0.045f * zoomDamping * userSensitivity
         standaloneRotationY = (standaloneRotationY + deltaX * dragScale) % 360f
         standaloneRotationX = (standaloneRotationX + deltaY * dragScale) % 360f
@@ -136,7 +136,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
 
     fun zoomStandalone(factor: Float) {
         if (standaloneMode && factor.isFinite() && factor > 0f) {
-            val exponent = 0.15f + standaloneZoomSensitivity * 0.85f
+            val exponent = 0.15f + kotlin.math.sqrt(standaloneZoomSensitivity) * 0.85f
             standaloneCameraDistance = (standaloneCameraDistance / factor.coerceIn(0.1f, 10f).let { Math.pow(it.toDouble(), exponent.toDouble()).toFloat() }).coerceIn(0.65f, 24f)
         }
     }
