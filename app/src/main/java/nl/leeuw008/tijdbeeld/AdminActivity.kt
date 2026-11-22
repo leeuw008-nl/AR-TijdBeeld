@@ -345,6 +345,10 @@ class AdminActivity : Activity() {
                         chooseMapBackground()
                         true
                     }
+                    beheerMenu.add("Back-up en herstel").setOnMenuItemClickListener {
+                        startActivity(Intent(this@AdminActivity, BackupActivity::class.java))
+                        true
+                    }
                     beheerMenu.add("Uitloggen").setOnMenuItemClickListener {
                         logout()
                         true
