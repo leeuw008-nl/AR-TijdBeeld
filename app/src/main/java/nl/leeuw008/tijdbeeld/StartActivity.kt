@@ -84,7 +84,8 @@ class StartActivity : Activity() {
                     if (prefs.getString("admin_session_token", "").orEmpty() == token) {
                         prefs.edit().putLong(
                             "admin_session_expires_at",
-                            if (persistent || expiresIn <= 0L) 0L else System.currentTimeMillis() + expiresIn * 1000L
+                            if (persistent) 0L else System.currentTimeMillis() +
+                                (expiresIn.takeIf { it > 0L } ?: 30L * 24L * 60L * 60L) * 1000L
                         ).apply()
                     }
                 }
