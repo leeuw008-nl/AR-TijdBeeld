@@ -63,8 +63,10 @@ class StartActivity : Activity() {
     // verlengt de lokale vervaldatum. Andere schermen en fotogegevens blijven onaangeraakt.
     private fun refreshAdminSessionInBackground() {
         val token = prefs.getString("admin_session_token", "").orEmpty()
-        val nextCheckAt = prefs.getLong("admin_session_expires_at", 0L)
-        if (token.isBlank() || sessionRefreshInFlight || nextCheckAt > System.currentTimeMillis() + 12L * 60L * 60L * 1000L) return
+        val lastRefreshAt = prefs.getLong("admin_session_last_refresh_at", 0L)
+        val refreshIntervalMs = 7L * 24L * 60L * 60L * 1000L
+        if (token.isBlank() || sessionRefreshInFlight ||
+            (lastRefreshAt > 0L && System.currentTimeMillis() - lastRefreshAt < refreshIntervalMs)) return
         sessionRefreshInFlight = true
         Thread {
             var connection: HttpURLConnection? = null
@@ -80,13 +82,14 @@ class StartActivity : Activity() {
                 val responseBody = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
                 if (status in 200..299) {
                     val response = JSONObject(responseBody)
-                    val persistent = response.optBoolean("persistent", false)
                     val expiresIn = response.optLong("expiresIn", 0L)
+                    val now = System.currentTimeMillis()
+                    val durationMs = (expiresIn.takeIf { it > 0L } ?: 30L * 24L * 60L * 60L) * 1000L
                     if (prefs.getString("admin_session_token", "").orEmpty() == token) {
-                        prefs.edit().putLong(
-                            "admin_session_expires_at",
-                            if (persistent || expiresIn <= 0L) System.currentTimeMillis() + 7L * 24L * 60L * 60L * 1000L else System.currentTimeMillis() + expiresIn * 1000L
-                        ).apply()
+                        prefs.edit()
+                            .putLong("admin_session_expires_at", now + durationMs)
+                            .putLong("admin_session_last_refresh_at", now)
+                            .apply()
                     }
                 }
                 // 401 wordt bewust niet lokaal afgehandeld op de startpagina.
@@ -301,7 +304,7 @@ class StartActivity : Activity() {
                 // Lokale sessie wordt ook zonder netwerkverbinding beëindigd.
             } finally {
                 connection?.disconnect()
-                prefs.edit().remove("admin_session_token").remove("admin_session_expires_at").apply()
+                prefs.edit().remove("admin_session_token").remove("admin_session_expires_at").remove("admin_session_last_refresh_at").apply()
             }
         }.start()
     }
