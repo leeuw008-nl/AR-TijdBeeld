@@ -116,10 +116,6 @@ class AdminLoginActivity : Activity() {
             textSize = 16f
             setOnClickListener { verifyCredentials() }
         }, LinearLayout.LayoutParams(-1, dp(54)))
-        page.addView(Button(this).apply {
-            text = "Terug"
-            setOnClickListener { finish() }
-        }, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(10) })
         root.addView(page, LinearLayout.LayoutParams(-1, -1))
         setContentView(root)
     }
