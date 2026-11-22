@@ -363,6 +363,14 @@ class AdminActivity : Activity() {
             setTypeface(null, android.graphics.Typeface.BOLD)
             setTextColor(0xFFFFFFFF.toInt())
         }, LinearLayout.LayoutParams(0, -2, 1f))
+        heading.addView(TextView(this).apply {
+            val installedVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: "onbekend"
+            text = "v$installedVersion"
+            textSize = 13f
+            setTextColor(0xFFFFFFFF.toInt())
+            gravity = Gravity.CENTER_VERTICAL or Gravity.END
+            contentDescription = "App-versie $installedVersion"
+        })
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(16, 12, 16, 12)
