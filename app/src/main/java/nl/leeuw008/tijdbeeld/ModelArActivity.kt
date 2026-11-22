@@ -187,7 +187,11 @@ class ModelArActivity : Activity() {
                         sensitivityLabel.text = "Zoom-/sleepgevoeligheid: $progress%"
                         if (fromUser) showSensitivityControls()
                     }
-                    override fun onStartTrackingTouch(seekBar: SeekBar?) { showSensitivityControls() }
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                        uiHandler.removeCallbacks(hideSensitivityControls)
+                        sensitivityControls.visibility = View.VISIBLE
+                        sensitivityControls.alpha = 1f
+                    }
                     override fun onStopTrackingTouch(seekBar: SeekBar?) {
                         uiHandler.removeCallbacks(hideSensitivityControls)
                         uiHandler.postDelayed(hideSensitivityControls, 3000L)
