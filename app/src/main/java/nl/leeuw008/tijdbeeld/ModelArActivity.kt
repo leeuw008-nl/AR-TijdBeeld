@@ -8,6 +8,9 @@ import android.opengl.GLSurfaceView
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.View
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -80,6 +83,14 @@ class ModelArActivity : Activity() {
             renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
         }
         if (standalonePreview) {
+            var controlsView: LinearLayout? = null
+            val uiHandler = Handler(Looper.getMainLooper())
+            val hideControls = Runnable { controlsView?.visibility = View.GONE }
+            fun revealControls() {
+                controlsView?.visibility = View.VISIBLE
+                uiHandler.removeCallbacks(hideControls)
+                uiHandler.postDelayed(hideControls, 3000L)
+            }
             var previousX = 0f
             var previousY = 0f
             var previousSpan = 0f
@@ -93,6 +104,7 @@ class ModelArActivity : Activity() {
                 return kotlin.math.sqrt(dx * dx + dy * dy)
             }
             glView.setOnTouchListener { _, event ->
+                revealControls()
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         showSensitivityControls()
@@ -174,7 +186,7 @@ class ModelArActivity : Activity() {
 
         if (standalonePreview) {
             val sensitivityLabel = TextView(this).apply {
-                text = "Zoom-/sleepgevoeligheid: 50%"
+                text = "Zoom-/sleepgevoeligheid: 100%"
                 textSize = 14f
                 setTextColor(0xFFFFFFFF.toInt())
                 gravity = Gravity.CENTER_HORIZONTAL
