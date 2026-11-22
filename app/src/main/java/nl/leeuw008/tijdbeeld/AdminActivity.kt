@@ -76,6 +76,7 @@ class AdminActivity : Activity() {
     private var featuredPhotoId: String = ""
     private var sessionToken: String = ""
     private var updatingFields = false
+    private var typeSelectionByUser = false
     private var updatingFeaturedSelector = false
     private var pendingFeaturedPhotoId: String = ""
     private var mapReady = false
@@ -592,10 +593,18 @@ class AdminActivity : Activity() {
             }
         }
         if (currentSection != "home") {
+            // Spinner callbacks can also be fired by Android while the form is being
+            // initialized or when an existing object is loaded. Only a real user
+            // touch may change the stored object type.
+            objectTypeSelector.setOnTouchListener { _, event ->
+                if (event.action == android.view.MotionEvent.ACTION_DOWN) typeSelectionByUser = true
+                false
+            }
             objectTypeSelector.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
                 override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
                 override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                    if (!updatingFields && photos.isNotEmpty()) {
+                    if (typeSelectionByUser && !updatingFields && photos.isNotEmpty()) {
+                        typeSelectionByUser = false
                         val item = photos[selected]
                         val currentMedia = urlInput.text.toString().trim()
                         if (item.objectType == "MODEL") item.modelUrl = currentMedia else item.imageUrl = currentMedia
