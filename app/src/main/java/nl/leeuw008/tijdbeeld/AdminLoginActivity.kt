@@ -243,10 +243,13 @@ class AdminLoginActivity : Activity() {
                     if (status in 200..299 && response?.optBoolean("success") == true && token.isNotBlank()) {
                         // Schrijf de beheersessie synchroon naar disk voordat het inlogscherm sluit.
                         // Zo blijft de token ook na direct afsluiten of herstart beschikbaar.
+                        val now = System.currentTimeMillis()
+                        val durationMs = (expiresIn.takeIf { it > 0L } ?: 30L * 24L * 60L * 60L) * 1000L
                         val sessionSaved = prefs.edit()
                             .putString("admin_email", email)
                             .putString("admin_session_token", token)
-                            .putLong("admin_session_expires_at", System.currentTimeMillis() + 30L * 24L * 60L * 60L * 1000L) // Lokale sessiecontrole na 30 dagen; server bewaart de token zonder KV-vervaldatum.
+                            .putLong("admin_session_expires_at", now + durationMs)
+                            .putLong("admin_session_last_refresh_at", now)
                             .commit()
                         if (sessionSaved) {
                             passwordInput.text.clear()
