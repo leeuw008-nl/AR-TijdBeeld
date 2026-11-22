@@ -596,7 +596,11 @@ class AdminActivity : Activity() {
                 override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
                 override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
                     if (!updatingFields && photos.isNotEmpty()) {
-                        photos[selected].objectType = if (position == 1) "MODEL" else "PHOTO"
+                        val item = photos[selected]
+                        val currentMedia = urlInput.text.toString().trim()
+                        if (item.objectType == "MODEL") item.modelUrl = currentMedia else item.imageUrl = currentMedia
+                        item.objectType = if (position == 1) "MODEL" else "PHOTO"
+                        urlInput.setText(if (item.objectType == "MODEL") item.modelUrl else item.imageUrl)
                         updateTypeFields()
                         persistCurrentForm()
                     }
