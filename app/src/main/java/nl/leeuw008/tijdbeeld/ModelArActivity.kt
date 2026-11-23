@@ -2,6 +2,7 @@ package nl.leeuw008.tijdbeeld
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.res.Configuration
 import android.content.pm.PackageManager
 import android.opengl.GLSurfaceView
@@ -80,12 +81,19 @@ class ModelArActivity : Activity() {
             modelUrl = intent.getStringExtra("modelUrl")?.takeIf { it.isNotBlank() },
             modelAsset = intent.getStringExtra("modelAsset")?.takeIf { it.isNotBlank() } ?: "ommerschans.glb"
         ).apply {
-            if (!standalonePreview) setGeoTargets(
-                intent.getDoubleExtra("objectLat", 52.58737559898257),
-                intent.getDoubleExtra("objectLng", 6.391727308884152),
-                intent.getDoubleExtra("testLat", Double.NaN),
-                intent.getDoubleExtra("testLng", Double.NaN)
-            )
+            if (!standalonePreview) {
+                val settings = getSharedPreferences("tijdbeeld_ar_settings", MODE_PRIVATE)
+                setGeospatialAccuracyThresholds(
+                    settings.getFloat("max_gps_accuracy_m", 5f).toDouble(),
+                    settings.getFloat("max_heading_accuracy_deg", 15f).toDouble()
+                )
+                setGeoTargets(
+                    intent.getDoubleExtra("objectLat", 52.58737559898257),
+                    intent.getDoubleExtra("objectLng", 6.391727308884152),
+                    intent.getDoubleExtra("testLat", Double.NaN),
+                    intent.getDoubleExtra("testLng", Double.NaN)
+                )
+            }
         }
         glView = GLSurfaceView(this).apply {
             setEGLContextClientVersion(2)
@@ -195,6 +203,17 @@ class ModelArActivity : Activity() {
             setTypeface(null, android.graphics.Typeface.BOLD)
             setTextColor(0xFFFFFFFF.toInt())
         }, LinearLayout.LayoutParams(0, -2, 1f))
+        if (!standalonePreview) {
+            header.addView(TextView(this).apply {
+                text = "⚙"
+                textSize = 25f
+                gravity = Gravity.CENTER
+                setTextColor(0xFFFFFFFF.toInt())
+                contentDescription = "GPS- en kompasinstellingen"
+                setPadding(dp(12), 0, dp(4), 0)
+                setOnClickListener { showGeospatialAccuracyDialog() }
+            }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        }
         root.addView(header, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
         if (!standalonePreview) {
             root.addView(status, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
@@ -315,6 +334,69 @@ class ModelArActivity : Activity() {
         requestPermissionsIfNeeded()
     }
 
+    private fun showGeospatialAccuracyDialog() {
+        val settings = getSharedPreferences("tijdbeeld_ar_settings", MODE_PRIVATE)
+        val currentGps = settings.getFloat("max_gps_accuracy_m", 5f).coerceIn(1f, 30f)
+        val currentHeading = settings.getFloat("max_heading_accuracy_deg", 15f).coerceIn(1f, 45f)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(8), dp(22), dp(4))
+        }
+        val gpsLabel = TextView(this).apply { textSize = 15f; setTextColor(0xFF243746.toInt()) }
+        val gpsSlider = SeekBar(this).apply {
+            max = 58
+            progress = ((currentGps - 1f) * 2f).toInt().coerceIn(0, max)
+        }
+        fun gpsValue(): Float = 1f + gpsSlider.progress / 2f
+        fun updateGpsLabel() {
+            gpsLabel.text = "Maximale GPS-afwijking: " + String.format(java.util.Locale.getDefault(), "%.1f", gpsValue()) + " meter"
+        }
+        gpsSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = updateGpsLabel()
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        updateGpsLabel()
+        val headingLabel = TextView(this).apply { textSize = 15f; setTextColor(0xFF243746.toInt()) }
+        val headingSlider = SeekBar(this).apply {
+            max = 44
+            progress = (currentHeading - 1f).toInt().coerceIn(0, max)
+        }
+        fun headingValue(): Float = 1f + headingSlider.progress
+        fun updateHeadingLabel() {
+            headingLabel.text = "Maximale kompasafwijking: " + headingValue().toInt() + " graden"
+        }
+        headingSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = updateHeadingLabel()
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        updateHeadingLabel()
+        content.addView(gpsLabel)
+        content.addView(gpsSlider)
+        content.addView(headingLabel)
+        content.addView(headingSlider)
+        AlertDialog.Builder(this)
+            .setTitle("GPS- en kompasnauwkeurigheid")
+            .setMessage("Het 3D-model wordt pas geplaatst wanneer beide metingen binnen deze grenzen vallen.")
+            .setView(content)
+            .setPositiveButton("Opslaan") { _, _ ->
+                val gps = gpsValue()
+                val heading = headingValue()
+                settings.edit().putFloat("max_gps_accuracy_m", gps)
+                    .putFloat("max_heading_accuracy_deg", heading).apply()
+                renderer.setGeospatialAccuracyThresholds(gps.toDouble(), heading.toDouble())
+                Toast.makeText(this, "Nauwkeurigheidsinstellingen opgeslagen", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Annuleren", null)
+            .setNeutralButton("Standaardwaarden") { _, _ ->
+                settings.edit().putFloat("max_gps_accuracy_m", 5f)
+                    .putFloat("max_heading_accuracy_deg", 15f).apply()
+                renderer.setGeospatialAccuracyThresholds(5.0, 15.0)
+                Toast.makeText(this, "Standaardwaarden hersteld: GPS 5 m, kompas 15°", Toast.LENGTH_SHORT).show()
+            }
+            .show()
+    }
     private fun showPivotDialog() {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
