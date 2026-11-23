@@ -1170,7 +1170,7 @@ class AdminActivity : Activity() {
     }
 
     private fun updateTypeFields() {
-        if (!::objectTypeSelector.isInitialized || photos.isEmpty()) return
+        if (!::objectTypeButtons.isInitialized || photos.isEmpty()) return
         val isModel = photos[selected].objectType == "MODEL"
         styleObjectTypeButton(objectTypePhotoButton, !isModel)
         styleObjectTypeButton(objectTypeModelButton, isModel)
