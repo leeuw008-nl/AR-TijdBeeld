@@ -314,6 +314,21 @@ class AdminActivity : Activity() {
             }
             if (remotePhotos.isEmpty()) return
             if (!hasLocalEditsSinceLaunch) {
+                // Lokale coördinaten zijn leidend: de openbare catalogus kan achterlopen
+                // op de laatst ingestelde en lokaal opgeslagen kaartspelden.
+                val localById = photos.associateBy { it.id }
+                val localByImage = photos.filter { it.imageUrl.isNotBlank() }.associateBy { it.imageUrl }
+                remotePhotos.forEach { remote ->
+                    val local = localById[remote.id] ?: localByImage[remote.imageUrl]
+                    if (local != null) {
+                        remote.objectLat = local.objectLat
+                        remote.objectLng = local.objectLng
+                        remote.cameraLat = local.cameraLat
+                        remote.cameraLng = local.cameraLng
+                        remote.testLat = local.testLat
+                        remote.testLng = local.testLng
+                    }
+                }
                 val localOnly = photos.filter { local ->
                     remotePhotos.none { remote ->
                         remote.id == local.id ||
@@ -1292,7 +1307,7 @@ class AdminActivity : Activity() {
             standaloneMode = true,
             modelUrl = url.takeIf { it.isNotBlank() },
             modelAsset = asset,
-            standaloneModelScaleMultiplier = 1.5f
+            standaloneModelScaleMultiplier = 2.0f
         )
         val surface = GLSurfaceView(this).apply {
             setEGLContextClientVersion(2)
@@ -1546,6 +1561,20 @@ class AdminActivity : Activity() {
                 }
                 updatingFields = false
                 hasLocalEditsSinceLaunch = true
+                // Sla elke verplaatste speld direct op; niet afhankelijk van een
+                // latere tik op de knop Opslaan of het open blijven van het scherm.
+                if (item != null) {
+                    when (kind) {
+                        "object" -> { item.objectLat = lat; item.objectLng = lng }
+                        else -> if (item.objectType == "MODEL") {
+                            item.testLat = lat; item.testLng = lng
+                        } else {
+                            item.cameraLat = lat; item.cameraLng = lng
+                        }
+                    }
+                    saveAll()
+                    if (item.published) publishCatalog()
+                }
             }
         }
         @JavascriptInterface fun onMapViewport(lat: Double, lng: Double, zoom: Int) {
