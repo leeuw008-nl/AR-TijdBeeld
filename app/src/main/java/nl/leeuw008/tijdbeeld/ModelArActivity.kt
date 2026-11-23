@@ -61,26 +61,21 @@ class ModelArActivity : Activity() {
         uiHandler.postDelayed(hideSensitivityControls, 2000L)
     }
     private val standalonePreview: Boolean by lazy { intent.getBooleanExtra("standalone_preview", false) }
-    private val photoTitle: String by lazy {
-        if (standalonePreview) "3D-model bekijken" else
-            intent.getStringExtra("photoTitle")?.takeIf { it.isNotBlank() } ?: OMMERSCHANS_PHOTO_TITLE
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         status = TextView(this).apply {
-            text = photoTitle + "\nCamera en geografische plaatsing starten…"
-            textSize = 16f
-            setTextColor(0xFFFFFFFF.toInt())
-            setShadowLayer(5f, 1f, 1f, 0xFF000000.toInt())
-            setPadding(dp(8), dp(10), dp(12), dp(10))
+            text = "Camera en geografische plaatsing starten…"
+            textSize = 12f
+            setTextColor(0xFF263746.toInt())
+            setPadding(dp(12), dp(6), dp(12), dp(6))
             gravity = Gravity.CENTER_VERTICAL
-            maxLines = 3
+            maxLines = 2
             setTextIsSelectable(true)
+            visibility = if (standalonePreview) View.GONE else View.VISIBLE
         }
         renderer = OmmerschansModelRenderer(
             this,
-            { message -> runOnUiThread { status.text = photoTitle + "\n" + message } },
+            { message -> runOnUiThread { status.text = message } },
             standaloneMode = standalonePreview,
             modelUrl = intent.getStringExtra("modelUrl")?.takeIf { it.isNotBlank() },
             modelAsset = intent.getStringExtra("modelAsset")?.takeIf { it.isNotBlank() } ?: "ommerschans.glb"
@@ -179,19 +174,31 @@ class ModelArActivity : Activity() {
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(0xCC102A43.toInt())
+            setPadding(dp(12), dp(8), dp(16), dp(8))
+            setBackgroundColor(0xFF1769AA.toInt())
         }
         val backButton = TextView(this).apply {
-            text = "←"
-            textSize = 27f
+            text = "‹"
+            textSize = 34f
             setTextColor(0xFFFFFFFF.toInt())
             gravity = Gravity.CENTER
             contentDescription = "Terug"
+            setPadding(0, 0, dp(12), 0)
             setOnClickListener { finish() }
         }
-        header.addView(backButton, LinearLayout.LayoutParams(dp(56), dp(56)))
-        header.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(backButton, LinearLayout.LayoutParams(dp(48), dp(48)))
+        header.addView(TextView(this).apply {
+            text = "AR-TijdBeeld"
+            textSize = 21f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(0xFFFFFFFF.toInt())
+        }, LinearLayout.LayoutParams(0, -2, 1f))
         root.addView(header, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        if (!standalonePreview) {
+            root.addView(status, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
+                topMargin = dp(64)
+            })
+        }
 
         if (standalonePreview) {
             val sensitivityLabel = TextView(this).apply {
