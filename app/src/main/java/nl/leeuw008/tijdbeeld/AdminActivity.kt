@@ -62,7 +62,9 @@ class AdminActivity : Activity() {
     private lateinit var objectTypePhotoButton: Button
     private lateinit var objectTypeModelButton: Button
     private lateinit var objectTypeButtons: LinearLayout
-    private lateinit var testLocationSelector: Spinner
+    private lateinit var modelPhotoUrlInput: EditText
+    private lateinit var modelPhotoPreviewFrame: FrameLayout
+    private lateinit var modelPhotoPreview: ImageView
     private lateinit var testLatInput: EditText
     private lateinit var testLngInput: EditText
     private lateinit var cameraFieldsContainer: LinearLayout
@@ -484,7 +486,23 @@ class AdminActivity : Activity() {
                     if (!hasFocus && photos.getOrNull(selected)?.objectType == "MODEL") refreshModelPreview(force = true)
                 }
             }
-            // Foto controleren is samengevoegd met Opslaan.
+            modelPhotoUrlInput = addField(formPanel, "URL van de bijbehorende foto (verplicht bij 3D-model)", "https://…").apply {
+                setOnFocusChangeListener { _, hasFocus ->
+                    if (!hasFocus && photos.getOrNull(selected)?.objectType == "MODEL") {
+                        loadImageInto(text.toString().trim(), modelPhotoPreview)
+                    }
+                }
+            }
+            modelPhotoPreviewFrame = FrameLayout(this).apply { setBackgroundColor(0xFFE8EDF2.toInt()) }
+            modelPhotoPreview = ImageView(this).apply {
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                adjustViewBounds = true
+                contentDescription = "Bijbehorende foto van het 3D-object"
+            }
+            modelPhotoPreviewFrame.addView(modelPhotoPreview, FrameLayout.LayoutParams(-1, -1))
+            formPanel.addView(modelPhotoPreviewFrame, LinearLayout.LayoutParams(-1, dp(112)).apply {
+                topMargin = dp(4); bottomMargin = dp(8)
+            })
 
             addSection(formPanel, "Locatie van het object")
             val objectCoordinates = coordinateRow(formPanel, "Breedtegraad (latitude)", "52.518349", "Lengtegraad (longitude)", "6.420889")
@@ -501,10 +519,7 @@ class AdminActivity : Activity() {
             val testCoordinates = coordinateRow(testFieldsContainer, "Breedtegraad (latitude)", "52.518349", "Lengtegraad (longitude)", "6.420889")
             testLatInput = testCoordinates.first
             testLngInput = testCoordinates.second
-            addSection(testFieldsContainer, "Weergavelocatie 3D-model")
-            testLocationSelector = Spinner(this)
-            testLocationSelector.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, listOf("Locatie van het object", "Testlocatie"))
-            testFieldsContainer.addView(testLocationSelector, LinearLayout.LayoutParams(-1, dp(48)))
+            // De AR-weergave kiest automatisch de dichtstbijzijnde van Locatie en Testlocatie.
             formPanel.addView(testFieldsContainer)
             addSection(formPanel, "Kaart en camerabeeld")
             if (currentSection == "edit") {
@@ -541,11 +556,7 @@ class AdminActivity : Activity() {
 
                 val saveDeleteActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
                 saveDeleteActions.addView(actionButton("Opslaan") {
-                    val imageUrl = urlInput.text.toString().trim()
-                    if (imageUrl.isBlank()) {
-                        Toast.makeText(this@AdminActivity, "Vul eerst de URL van de foto in.", Toast.LENGTH_LONG).show()
-                        return@actionButton
-                    }
+                    if (!validateCurrentMedia()) return@actionButton
                     saveCurrent()
                     if (photos[selected].published) publishCatalog()
                     loadPreview(imageUrl, showMessage = true)
@@ -558,11 +569,7 @@ class AdminActivity : Activity() {
                     LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(10); bottomMargin = dp(6) })
                 val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
                 actions.addView(actionButton("Opslaan") {
-                    val imageUrl = urlInput.text.toString().trim()
-                    if (imageUrl.isBlank()) {
-                        Toast.makeText(this@AdminActivity, "Vul eerst de URL van de foto in.", Toast.LENGTH_LONG).show()
-                        return@actionButton
-                    }
+                    if (!validateCurrentMedia()) return@actionButton
                     saveCurrent()
                     if (photos[selected].published) publishCatalog()
                     loadPreview(imageUrl, showMessage = true)
@@ -622,17 +629,6 @@ class AdminActivity : Activity() {
                 override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
                 override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
                     if (position != selected) { saveCurrent(); showPhoto(position) }
-                }
-            }
-        }
-        if (currentSection != "home") {
-            testLocationSelector.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
-                override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                    if (!updatingFields && photos.isNotEmpty()) {
-                        photos[selected].displayLocation = if (position == 1) "TEST" else "OBJECT"
-                        persistCurrentForm()
-                    }
                 }
             }
         }
@@ -731,10 +727,10 @@ class AdminActivity : Activity() {
         updatingFields = true
         val p = photos[selected]
         titleInput.setText(p.title); urlInput.setText(if (p.objectType == "MODEL") p.modelUrl else p.imageUrl)
+        modelPhotoUrlInput.setText(p.imageUrl)
         objectLatInput.setText(p.objectLat.toString()); objectLngInput.setText(p.objectLng.toString())
         testLatInput.setText(if (p.testLat.isFinite()) p.testLat.toString() else "")
         testLngInput.setText(if (p.testLng.isFinite()) p.testLng.toString() else "")
-        testLocationSelector.setSelection(if (p.displayLocation == "TEST") 1 else 0, false)
         cameraLatInput.setText(p.cameraLat.toString()); cameraLngInput.setText(p.cameraLng.toString())
         publishCheckbox.isChecked = p.published
         updatingFields = false
@@ -823,7 +819,12 @@ class AdminActivity : Activity() {
         val p = photos[selected]
         p.title = titleInput.text.toString().trim()
         val mediaUrl = urlInput.text.toString().trim()
-        if (p.objectType == "MODEL") p.modelUrl = mediaUrl else p.imageUrl = mediaUrl
+        if (p.objectType == "MODEL") {
+            p.modelUrl = mediaUrl
+            p.imageUrl = modelPhotoUrlInput.text.toString().trim()
+        } else {
+            p.imageUrl = mediaUrl
+        }
         p.objectLat = objectLatInput.numberOr(p.objectLat)
         p.objectLng = objectLngInput.numberOr(p.objectLng)
         p.cameraLat = cameraLatInput.numberOr(p.cameraLat)
@@ -831,6 +832,25 @@ class AdminActivity : Activity() {
         p.testLat = if (::testLatInput.isInitialized) testLatInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN else p.testLat
         p.testLng = if (::testLngInput.isInitialized) testLngInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN else p.testLng
         saveAll()
+    }
+
+    private fun validateCurrentMedia(): Boolean {
+        persistCurrentForm()
+        val item = photos.getOrNull(selected) ?: return false
+        if (item.objectType == "MODEL") {
+            if (item.modelUrl.isBlank() && item.modelAsset.isBlank()) {
+                Toast.makeText(this, "Vul eerst de URL van het GLB-bestand in.", Toast.LENGTH_LONG).show()
+                return false
+            }
+            if (item.imageUrl.isBlank()) {
+                Toast.makeText(this, "Vul ook de URL van de bijbehorende foto in. Deze is verplicht bij een 3D-model.", Toast.LENGTH_LONG).show()
+                return false
+            }
+        } else if (item.imageUrl.isBlank()) {
+            Toast.makeText(this, "Vul eerst de URL van de foto in.", Toast.LENGTH_LONG).show()
+            return false
+        }
+        return true
     }
 
     private fun saveCurrent() {
@@ -1007,7 +1027,8 @@ class AdminActivity : Activity() {
         }
         saveCurrent()
         val publishablePhotos = photos.filter { item -> item.published && item.title.isNotBlank() &&
-            (if (item.objectType == "MODEL") item.modelUrl.startsWith("https://") || item.modelAsset.isNotBlank() else item.imageUrl.startsWith("https://")) }
+            item.imageUrl.startsWith("https://") &&
+            (if (item.objectType == "MODEL") item.modelUrl.startsWith("https://") || item.modelAsset.isNotBlank() else true) }
         if (publishablePhotos.isEmpty()) {
             Toast.makeText(this,
                 "Er is geen geldige foto geselecteerd voor openbare publicatie. De bestaande openbare foto's blijven behouden.",
@@ -1123,8 +1144,10 @@ class AdminActivity : Activity() {
 
     private fun openCamera() {
         val p = photos[selected]
+        persistCurrentForm()
         if (p.objectType == "MODEL") {
             if (p.modelUrl.isBlank() && p.modelAsset.isBlank()) { Toast.makeText(this, "Vul eerst de URL van het GLB-model in.", Toast.LENGTH_LONG).show(); return }
+            if (p.imageUrl.isBlank()) { Toast.makeText(this, "Vul ook de URL van de bijbehorende foto in. Deze is verplicht bij een 3D-model.", Toast.LENGTH_LONG).show(); return }
             startActivityForResult(Intent(this, ModelArActivity::class.java).apply {
                 putExtra("photoTitle", p.title)
                 putExtra("modelUrl", p.modelUrl)
@@ -1173,10 +1196,16 @@ class AdminActivity : Activity() {
         if (updatingFields || photos.isEmpty()) return
         val item = photos[selected]
         val currentMedia = urlInput.text.toString().trim()
-        if (item.objectType == "MODEL") item.modelUrl = currentMedia else item.imageUrl = currentMedia
+        if (item.objectType == "MODEL") {
+            item.modelUrl = currentMedia
+            item.imageUrl = modelPhotoUrlInput.text.toString().trim()
+        } else {
+            item.imageUrl = currentMedia
+        }
         item.objectType = if (type == "MODEL") "MODEL" else "PHOTO"
         updatingFields = true
         urlInput.setText(if (item.objectType == "MODEL") item.modelUrl else item.imageUrl)
+        modelPhotoUrlInput.setText(item.imageUrl)
         updatingFields = false
         updateTypeFields()
         hasLocalEditsSinceLaunch = true
@@ -1201,9 +1230,17 @@ class AdminActivity : Activity() {
         cameraFieldsContainer.visibility = if (isModel) View.GONE else View.VISIBLE
         testFieldsContainer.visibility = if (isModel) View.VISIBLE else View.GONE
         preview.visibility = if (isModel) View.GONE else View.VISIBLE
+        modelPhotoUrlInput.visibility = if (isModel) View.VISIBLE else View.GONE
+        modelPhotoPreviewFrame.visibility = if (isModel) View.VISIBLE else View.GONE
         urlInput.hint = if (isModel) "HTTPS-URL naar een GLB 2.0-bestand" else "HTTPS-URL van de historische foto"
         modelPreviewButton?.visibility = if (isModel) View.VISIBLE else View.GONE
-        if (isModel) refreshModelPreview() else destroyModelPreview()
+        if (isModel) {
+            loadImageInto(photos[selected].imageUrl, modelPhotoPreview)
+            refreshModelPreview()
+        } else {
+            destroyModelPreview()
+            loadPreview(photos[selected].imageUrl)
+        }
     }
 
     private fun destroyModelPreview() {
@@ -1281,6 +1318,8 @@ class AdminActivity : Activity() {
         modelPreviewRenderer = renderer
         modelPreviewSurface = surface
         modelPreviewFrame.addView(surface, 0, FrameLayout.LayoutParams(-1, -1))
+        // The view can be created after Activity.onResume(); resume it so GLB rendering starts.
+        surface.onResume()
     }
 
     private fun loadImageInto(url: String, target: ImageView, showMessage: Boolean = false) {
@@ -1417,19 +1456,8 @@ class AdminActivity : Activity() {
         if (mapScreenActive) closeMapPage() else super.onBackPressed()
     }
 
-    private fun mapTarget(): Pair<Double, Double> {
-        val item = photos.getOrNull(selected)
-        if (item?.objectType == "MODEL" && item.displayLocation == "TEST") {
-            val lat = testLatInput.numberOr(item.testLat.takeIf { it.isFinite() } ?: item.objectLat)
-            val lng = testLngInput.numberOr(item.testLng.takeIf { it.isFinite() } ?: item.objectLng)
-            return Pair(lat, lng)
-        }
-        return Pair(objectLatInput.numberOr(52.518349), objectLngInput.numberOr(6.420889))
-    }
-
     private fun updateMapFromFields(fit: Boolean = false) {
         val isModel = photos.getOrNull(selected)?.objectType == "MODEL"
-        val target = mapTarget()
         val olat = objectLatInput.numberOr(52.518349)
         val olng = objectLngInput.numberOr(6.420889)
         val tlat = if (isModel) testLatInput.numberOr(olat) else cameraLatInput.numberOr(52.518263)
@@ -1448,6 +1476,7 @@ class AdminActivity : Activity() {
         val centerLng = prefs.getString("mapCenterLng", null)?.toDoubleOrNull() ?: (olng + tlng) / 2.0
         val zoom = prefs.getInt("mapZoom", 17)
         val mapBackground = prefs.getString("map_background", "pdok")
+        val secondPinLabel = if (isModel) "Testlocatie" else "Fotolocatie"
         val tileLayerJs = when (mapBackground) {
             "osm" -> "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);"
             "opentopo" -> "L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:18,maxNativeZoom:17,attribution:'© OpenTopoMap (CC-BY-SA)'}).addTo(map);"
@@ -1472,7 +1501,7 @@ class AdminActivity : Activity() {
             html:'<div class="pin-label">'+svg+'<span>'+label+'</span></div>'});
         }
         var objectPin=L.marker([${olat},${olng}],{draggable:true,icon:labeledIcon('Locatie','#1769d2')}).addTo(map);
-        var testPin=L.marker([${tlat},${tlng}],{draggable:true,icon:labeledIcon('Testlocatie','#d52b35')}).addTo(map);
+        var testPin=L.marker([${tlat},${tlng}],{draggable:true,icon:labeledIcon('${secondPinLabel}','#d52b35')}).addTo(map);
         objectPin.on('dragend',function(){var p=objectPin.getLatLng();TijdBeeld.onMapMove('object',p.lat,p.lng);});
         testPin.on('dragend',function(){var p=testPin.getLatLng();TijdBeeld.onMapMove('test',p.lat,p.lng);});
         function setPoints(a,b,c,d,fit,showTest){
@@ -1517,11 +1546,9 @@ class AdminActivity : Activity() {
             runOnUiThread {
                 updatingFields = true
                 val item = photos.getOrNull(selected)
-                if (kind == "object" && item?.objectType == "MODEL" && item.displayLocation == "TEST") {
-                    testLatInput.setText(lat.toString()); testLngInput.setText(lng.toString())
-                } else if (kind == "object") {
+                if (kind == "object") {
                     objectLatInput.setText(lat.toString()); objectLngInput.setText(lng.toString())
-                } else if (kind == "test" && item?.objectType == "MODEL") {
+                } else if (item?.objectType == "MODEL") {
                     testLatInput.setText(lat.toString()); testLngInput.setText(lng.toString())
                 } else {
                     cameraLatInput.setText(lat.toString()); cameraLngInput.setText(lng.toString())
