@@ -21,7 +21,7 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
 /** Minimal GLB 2.0 triangle renderer. Geometry is kept in model metres. */
-class OmmerschansModelRenderer(private val context: Context, private val status: (String) -> Unit, private val standaloneMode: Boolean = false, private val modelUrl: String? = null, private val modelAsset: String = "ommerschans.glb") : GLSurfaceView.Renderer {
+class OmmerschansModelRenderer(private val context: Context, private val status: (String) -> Unit, private val standaloneMode: Boolean = false, private val modelUrl: String? = null, private val modelAsset: String = "ommerschans.glb", private val standaloneModelScaleMultiplier: Float = 1f) : GLSurfaceView.Renderer {
     @Volatile private var session: Session? = null
     @Volatile private var lastStatus = ""
     @Volatile private var modelData: List<Part>? = null
@@ -327,7 +327,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                 }
             }
             val extent = maxOf(maxX - minX, maxY - minY, maxZ - minZ).coerceAtLeast(0.001f)
-            val scale = 2.8f / extent
+            val scale = (2.8f * standaloneModelScaleMultiplier.coerceIn(1f, 2f)) / extent
             Matrix.setIdentityM(standaloneModel, 0)
             Matrix.scaleM(standaloneModel, 0, scale, scale, scale)
             // 50% on all axes keeps the original bounding-box centre as pivot.
