@@ -9,6 +9,7 @@ import android.graphics.Bitmap
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
+import android.opengl.GLSurfaceView
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -70,6 +71,11 @@ class AdminActivity : Activity() {
     private var adminScreenView: View? = null
     private var mapScreenActive = false
     private lateinit var preview: ImageView
+    private lateinit var modelPreviewFrame: FrameLayout
+    private var modelPreviewStatus: TextView? = null
+    private var modelPreviewSurface: GLSurfaceView? = null
+    private var modelPreviewRenderer: OmmerschansModelRenderer? = null
+    private var modelPreviewSource: String = ""
     private lateinit var featuredPreview: ImageView
     private val thumbnailCache = mutableMapOf<String, Bitmap>()
     private val thumbnailLoading = mutableSetOf<String>()
@@ -162,6 +168,7 @@ class AdminActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        modelPreviewSurface?.onResume()
         keepSessionAlive()
         if (returningFromCamera) {
             returningFromCamera = false
@@ -172,6 +179,11 @@ class AdminActivity : Activity() {
             }
             showPhoto(selected.coerceIn(0, photos.lastIndex))
         }
+    }
+
+    override fun onPause() {
+        modelPreviewSurface?.onPause()
+        super.onPause()
     }
 
     private fun loadPhotos(): Boolean {
@@ -432,6 +444,9 @@ class AdminActivity : Activity() {
                 })
             }
 
+            modelPreviewFrame = FrameLayout(this).apply {
+                setBackgroundColor(0xFFE8EDF2.toInt())
+            }
             preview = ImageView(this).apply {
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 adjustViewBounds = true
@@ -441,7 +456,17 @@ class AdminActivity : Activity() {
                 contentDescription = "Foto openen op volledig scherm"
                 setOnClickListener { showFullscreenImage(this, titleInput.text.toString()) }
             }
-            formPanel.addView(preview, LinearLayout.LayoutParams(-1, dp(190)).apply {
+            modelPreviewStatus = TextView(this).apply {
+                text = "3D-model verschijnt hier zodra een GLB-bestand is ingevuld."
+                textSize = 14f
+                gravity = Gravity.CENTER
+                setTextColor(0xFF263746.toInt())
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+                visibility = View.GONE
+            }
+            modelPreviewFrame.addView(preview, FrameLayout.LayoutParams(-1, -1))
+            modelPreviewFrame.addView(modelPreviewStatus, FrameLayout.LayoutParams(-1, -1))
+            formPanel.addView(modelPreviewFrame, LinearLayout.LayoutParams(-1, dp(190)).apply {
                 topMargin = dp(8); bottomMargin = dp(8)
             })
             addSection(formPanel, "Type object")
@@ -454,7 +479,11 @@ class AdminActivity : Activity() {
             titleInput = addField(formPanel, "Titel / bijschrift", "Bijv. 1910 - Kantongerechtsgebouw").apply {
                 setSelectAllOnFocus(true)
             }
-            urlInput = addField(formPanel, "URL van de foto of het 3D-modelbestand (GLB)", "https://…")
+            urlInput = addField(formPanel, "URL van de foto of het 3D-modelbestand (GLB)", "https://…").apply {
+                setOnFocusChangeListener { _, hasFocus ->
+                    if (!hasFocus && photos.getOrNull(selected)?.objectType == "MODEL") refreshModelPreview(force = true)
+                }
+            }
             // Foto controleren is samengevoegd met Opslaan.
 
             addSection(formPanel, "Locatie van het object")
@@ -711,7 +740,7 @@ class AdminActivity : Activity() {
         updatingFields = false
         updateTypeFields()
         refreshPhotoSelector()
-        if (p.objectType == "PHOTO") loadPreview(p.imageUrl) else preview.setImageDrawable(null)
+        if (p.objectType == "PHOTO") loadPreview(p.imageUrl)
         updateMapFromFields(fit = true)
     }
 
@@ -1174,7 +1203,84 @@ class AdminActivity : Activity() {
         preview.visibility = if (isModel) View.GONE else View.VISIBLE
         urlInput.hint = if (isModel) "HTTPS-URL naar een GLB 2.0-bestand" else "HTTPS-URL van de historische foto"
         modelPreviewButton?.visibility = if (isModel) View.VISIBLE else View.GONE
-        if (isModel) preview.setImageDrawable(null)
+        if (isModel) refreshModelPreview() else destroyModelPreview()
+    }
+
+    private fun destroyModelPreview() {
+        modelPreviewSurface?.onPause()
+        modelPreviewSurface?.let { modelPreviewFrame.removeView(it) }
+        modelPreviewSurface = null
+        modelPreviewRenderer = null
+        modelPreviewSource = ""
+        modelPreviewStatus?.visibility = View.GONE
+    }
+
+    private fun refreshModelPreview(force: Boolean = false) {
+        if (!::modelPreviewFrame.isInitialized || photos.isEmpty()) return
+        val item = photos.getOrNull(selected) ?: return
+        if (item.objectType != "MODEL") {
+            destroyModelPreview()
+            return
+        }
+
+        val url = urlInput.text.toString().trim()
+        val asset = item.modelAsset.trim()
+        val sourceKey = when {
+            url.isNotBlank() -> "url:$url"
+            asset.isNotBlank() -> "asset:$asset"
+            else -> ""
+        }
+        if (sourceKey.isBlank()) {
+            destroyModelPreview()
+            modelPreviewStatus?.apply {
+                text = "3D-model verschijnt hier zodra een GLB-bestand is ingevuld."
+                visibility = View.VISIBLE
+            }
+            return
+        }
+        if (!force && modelPreviewSource == sourceKey && modelPreviewSurface != null) return
+
+        destroyModelPreview()
+        modelPreviewSource = sourceKey
+        modelPreviewStatus?.apply {
+            text = "3D-model wordt geladen…"
+            visibility = View.VISIBLE
+        }
+
+        val renderer = OmmerschansModelRenderer(
+            this,
+            { message ->
+                runOnUiThread {
+                    if (modelPreviewSource == sourceKey && modelPreviewStatus != null) {
+                        modelPreviewStatus?.text = message
+                        modelPreviewStatus?.visibility =
+                            if (message.startsWith("3D-model geladen")) View.GONE else View.VISIBLE
+                    }
+                }
+            },
+            standaloneMode = true,
+            modelUrl = url.takeIf { it.isNotBlank() },
+            modelAsset = asset.ifBlank { "ommerschans.glb" }
+        )
+        val surface = GLSurfaceView(this).apply {
+            setEGLContextClientVersion(2)
+            setRenderer(renderer)
+            renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+            isClickable = true
+            setOnClickListener {
+                saveCurrent()
+                val current = photos.getOrNull(selected) ?: return@setOnClickListener
+                startActivity(Intent(this@AdminActivity, ModelArActivity::class.java).apply {
+                    putExtra("standalone_preview", true)
+                    putExtra("photoTitle", current.title)
+                    putExtra("modelUrl", current.modelUrl)
+                    putExtra("modelAsset", current.modelAsset)
+                })
+            }
+        }
+        modelPreviewRenderer = renderer
+        modelPreviewSurface = surface
+        modelPreviewFrame.addView(surface, 0, FrameLayout.LayoutParams(-1, -1))
     }
 
     private fun loadImageInto(url: String, target: ImageView, showMessage: Boolean = false) {
