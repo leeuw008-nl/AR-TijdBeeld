@@ -63,8 +63,6 @@ class AdminActivity : Activity() {
     private lateinit var objectTypeModelButton: Button
     private lateinit var objectTypeButtons: LinearLayout
     private lateinit var modelPhotoUrlInput: EditText
-    private lateinit var modelPhotoPreviewFrame: FrameLayout
-    private lateinit var modelPhotoPreview: ImageView
     private lateinit var testLatInput: EditText
     private lateinit var testLngInput: EditText
     private lateinit var cameraFieldsContainer: LinearLayout
@@ -486,23 +484,7 @@ class AdminActivity : Activity() {
                     if (!hasFocus && photos.getOrNull(selected)?.objectType == "MODEL") refreshModelPreview(force = true)
                 }
             }
-            modelPhotoUrlInput = addField(formPanel, "URL van de bijbehorende foto (verplicht bij 3D-model)", "https://…").apply {
-                setOnFocusChangeListener { _, hasFocus ->
-                    if (!hasFocus && photos.getOrNull(selected)?.objectType == "MODEL") {
-                        loadImageInto(text.toString().trim(), modelPhotoPreview)
-                    }
-                }
-            }
-            modelPhotoPreviewFrame = FrameLayout(this).apply { setBackgroundColor(0xFFE8EDF2.toInt()) }
-            modelPhotoPreview = ImageView(this).apply {
-                scaleType = ImageView.ScaleType.FIT_CENTER
-                adjustViewBounds = true
-                contentDescription = "Bijbehorende foto van het 3D-object"
-            }
-            modelPhotoPreviewFrame.addView(modelPhotoPreview, FrameLayout.LayoutParams(-1, -1))
-            formPanel.addView(modelPhotoPreviewFrame, LinearLayout.LayoutParams(-1, dp(112)).apply {
-                topMargin = dp(4); bottomMargin = dp(8)
-            })
+            modelPhotoUrlInput = addField(formPanel, "URL van de bijbehorende foto (verplicht bij 3D-model)", "https://…")
 
             addSection(formPanel, "Locatie van het object")
             val objectCoordinates = coordinateRow(formPanel, "Breedtegraad (latitude)", "52.518349", "Lengtegraad (longitude)", "6.420889")
@@ -561,7 +543,7 @@ class AdminActivity : Activity() {
                     if (photos[selected].published) publishCatalog()
                     val savedItem = photos[selected]
                     if (savedItem.objectType == "MODEL") {
-                        loadImageInto(savedItem.imageUrl, modelPhotoPreview, showMessage = true)
+                        Toast.makeText(this, "Gegevens opgeslagen.", Toast.LENGTH_LONG).show()
                     } else {
                         loadPreview(savedItem.imageUrl, showMessage = true)
                     }
@@ -579,7 +561,7 @@ class AdminActivity : Activity() {
                     if (photos[selected].published) publishCatalog()
                     val savedItem = photos[selected]
                     if (savedItem.objectType == "MODEL") {
-                        loadImageInto(savedItem.imageUrl, modelPhotoPreview, showMessage = true)
+                        Toast.makeText(this, "Gegevens opgeslagen.", Toast.LENGTH_LONG).show()
                     } else {
                         loadPreview(savedItem.imageUrl, showMessage = true)
                     }
@@ -1245,11 +1227,9 @@ class AdminActivity : Activity() {
         testFieldsContainer.visibility = if (isModel) View.VISIBLE else View.GONE
         preview.visibility = if (isModel) View.GONE else View.VISIBLE
         modelPhotoUrlInput.visibility = if (isModel) View.VISIBLE else View.GONE
-        modelPhotoPreviewFrame.visibility = if (isModel) View.VISIBLE else View.GONE
         urlInput.hint = if (isModel) "HTTPS-URL naar een GLB 2.0-bestand" else "HTTPS-URL van de historische foto"
         modelPreviewButton?.visibility = if (isModel) View.VISIBLE else View.GONE
         if (isModel) {
-            loadImageInto(photos[selected].imageUrl, modelPhotoPreview)
             refreshModelPreview()
         } else {
             destroyModelPreview()
@@ -1311,7 +1291,8 @@ class AdminActivity : Activity() {
             },
             standaloneMode = true,
             modelUrl = url.takeIf { it.isNotBlank() },
-            modelAsset = asset
+            modelAsset = asset,
+            standaloneModelScaleMultiplier = 1.5f
         )
         val surface = GLSurfaceView(this).apply {
             setEGLContextClientVersion(2)
@@ -1522,15 +1503,12 @@ class AdminActivity : Activity() {
           objectPin.setLatLng([a,b]);testPin.setLatLng([c,d]);
           testPin.setOpacity(showTest===false?0:1);
           if(fit!==false){
-            var center=L.latLng((a+c)/2,(b+d)/2);
-            map.setView(center,17,{animate:false});
-            map.whenReady(function(){
-              var p1=map.latLngToContainerPoint([a,b]);
-              var p2=map.latLngToContainerPoint([c,d]);
-              var actual=Math.max(1,p1.distanceTo(p2));
-              var desired=Math.max(24,map.getSize().x*0.10);
-              var adjusted=Math.max(5,Math.min(19,map.getZoom()+Math.log2(desired/actual)));
-              map.setView(center,adjusted,{animate:false});
+            var bounds=L.latLngBounds([[a,b],[c,d]]);
+            map.fitBounds(bounds,{
+              paddingTopLeft:[32,84],
+              paddingBottomRight:[32,78],
+              maxZoom:17,
+              animate:false
             });
           }
         }
@@ -1551,9 +1529,8 @@ class AdminActivity : Activity() {
                 val olng = objectLngInput.numberOr(6.420889)
                 val tlat = if (isModel) testLatInput.numberOr(olat) else cameraLatInput.numberOr(52.518263)
                 val tlng = if (isModel) testLngInput.numberOr(olng) else cameraLngInput.numberOr(6.421917)
-                val hasSavedView = prefs.getString("mapCenterLat", null)?.toDoubleOrNull() != null &&
-                    prefs.getString("mapCenterLng", null)?.toDoubleOrNull() != null
-                map.evaluateJavascript("setPoints($olat,$olng,$tlat,$tlng,${!hasSavedView},true);", null)
+                // Always frame both current location pins when opening the topo map.
+                map.evaluateJavascript("setPoints($olat,$olng,$tlat,$tlng,true,true);", null)
             }
         }
         @JavascriptInterface fun onMapMove(kind: String, lat: Double, lng: Double) {
