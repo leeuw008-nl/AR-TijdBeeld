@@ -248,7 +248,7 @@ class ModelArActivity : Activity() {
                 }
             }
             root.addView(sensitivityControls, FrameLayout.LayoutParams(dp(280), -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
-                bottomMargin = dp(116)
+                bottomMargin = dp(170)
             })
 
             fun controlButton(label: String, action: () -> Unit): TextView =
