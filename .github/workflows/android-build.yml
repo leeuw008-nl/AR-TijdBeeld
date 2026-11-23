@@ -141,7 +141,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           script: |
-            set -euxo pipefail
+            set -eux
             timeout 120s adb wait-for-device
             for attempt in $(seq 1 60); do
               BOOTED="$(timeout 10s adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r' || true)"
