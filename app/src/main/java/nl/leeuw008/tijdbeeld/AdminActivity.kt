@@ -563,7 +563,7 @@ class AdminActivity : Activity() {
             }
             formPanel.addView(publishCheckbox)
             formPanel.addView(TextView(this).apply {
-                text = "Tip: sleep op de kaart de blauwe speld (Object) of rode speld (Fotograaf) naar de juiste plek."
+                text = "Tip: sleep op de kaart de blauwe speld (Locatie) of rode speld (Testlocatie) naar de juiste plek."
                 textSize = 12f
                 setTextColor(0xFF5B6873.toInt())
                 setPadding(2, dp(8), 2, dp(4))
@@ -1329,22 +1329,22 @@ class AdminActivity : Activity() {
     private fun updateMapFromFields(fit: Boolean = false) {
         val isModel = photos.getOrNull(selected)?.objectType == "MODEL"
         val target = mapTarget()
-        val clat = if (isModel) target.first else cameraLatInput.numberOr(52.518263)
-        val clng = if (isModel) target.second else cameraLngInput.numberOr(6.421917)
-        val js = "if(window.setPoints){setPoints(${target.first},${target.second},$clat,$clng,$fit,${!isModel});}"
+        val olat = objectLatInput.numberOr(52.518349)
+        val olng = objectLngInput.numberOr(6.420889)
+        val tlat = if (isModel) testLatInput.numberOr(olat) else cameraLatInput.numberOr(52.518263)
+        val tlng = if (isModel) testLngInput.numberOr(olng) else cameraLngInput.numberOr(6.421917)
+        val js = "if(window.setPoints){setPoints($olat,$olng,$tlat,$tlng,$fit,true);}"
         if (mapReady && mapScreenActive) map.evaluateJavascript(js, null)
     }
 
     private fun mapHtml(): String {
         val isModel = photos.getOrNull(selected)?.objectType == "MODEL"
-        val target = mapTarget()
-        val olat = target.first
-        val olng = target.second
-        val clat = if (isModel) olat else cameraLatInput.numberOr(52.518263)
-        val clng = if (isModel) olng else cameraLngInput.numberOr(6.421917)
-        val pinLabel = if (isModel) "3D-model" else "Object"
-        val centerLat = if (isModel) olat else prefs.getString("mapCenterLat", null)?.toDoubleOrNull() ?: (olat + clat) / 2.0
-        val centerLng = if (isModel) olng else prefs.getString("mapCenterLng", null)?.toDoubleOrNull() ?: (olng + clng) / 2.0
+        val olat = objectLatInput.numberOr(52.518349)
+        val olng = objectLngInput.numberOr(6.420889)
+        val tlat = if (isModel) testLatInput.numberOr(olat) else cameraLatInput.numberOr(52.518263)
+        val tlng = if (isModel) testLngInput.numberOr(olng) else cameraLngInput.numberOr(6.421917)
+        val centerLat = prefs.getString("mapCenterLat", null)?.toDoubleOrNull() ?: (olat + tlat) / 2.0
+        val centerLng = prefs.getString("mapCenterLng", null)?.toDoubleOrNull() ?: (olng + tlng) / 2.0
         val zoom = prefs.getInt("mapZoom", 17)
         val mapBackground = prefs.getString("map_background", "pdok")
         val tileLayerJs = when (mapBackground) {
@@ -1370,13 +1370,13 @@ class AdminActivity : Activity() {
           return L.divIcon({className:'',iconSize:[112,40],iconAnchor:[15,36],
             html:'<div class="pin-label">'+svg+'<span>'+label+'</span></div>'});
         }
-        var objectPin=L.marker([${olat},${olng}],{draggable:true,icon:labeledIcon('${pinLabel}','#1769d2')}).addTo(map);
-        var cameraPin=L.marker([${clat},${clng}],{draggable:true,icon:labeledIcon('Fotograaf','#d52b35')}).addTo(map);
+        var objectPin=L.marker([${olat},${olng}],{draggable:true,icon:labeledIcon('Locatie','#1769d2')}).addTo(map);
+        var testPin=L.marker([${tlat},${tlng}],{draggable:true,icon:labeledIcon('Testlocatie','#d52b35')}).addTo(map);
         objectPin.on('dragend',function(){var p=objectPin.getLatLng();TijdBeeld.onMapMove('object',p.lat,p.lng);});
-        cameraPin.on('dragend',function(){var p=cameraPin.getLatLng();TijdBeeld.onMapMove('camera',p.lat,p.lng);});
-        function setPoints(a,b,c,d,fit,showCamera){
-          objectPin.setLatLng([a,b]);cameraPin.setLatLng([c,d]);
-          cameraPin.setOpacity(showCamera===false?0:1);
+        testPin.on('dragend',function(){var p=testPin.getLatLng();TijdBeeld.onMapMove('test',p.lat,p.lng);});
+        function setPoints(a,b,c,d,fit,showTest){
+          objectPin.setLatLng([a,b]);testPin.setLatLng([c,d]);
+          testPin.setOpacity(showTest===false?0:1);
           if(fit!==false){
             var center=L.latLng((a+c)/2,(b+d)/2);
             map.setView(center,17,{animate:false});
@@ -1402,15 +1402,14 @@ class AdminActivity : Activity() {
         @JavascriptInterface fun onMapReady() {
             runOnUiThread {
                 mapReady = true
+                val isModel = photos.getOrNull(selected)?.objectType == "MODEL"
                 val olat = objectLatInput.numberOr(52.518349)
                 val olng = objectLngInput.numberOr(6.420889)
-                val isModel = photos.getOrNull(selected)?.objectType == "MODEL"
-                val target = mapTarget()
-                val clat = if (isModel) target.first else cameraLatInput.numberOr(52.518263)
-                val clng = if (isModel) target.second else cameraLngInput.numberOr(6.421917)
-                val hasSavedView = !isModel && prefs.getString("mapCenterLat", null)?.toDoubleOrNull() != null &&
+                val tlat = if (isModel) testLatInput.numberOr(olat) else cameraLatInput.numberOr(52.518263)
+                val tlng = if (isModel) testLngInput.numberOr(olng) else cameraLngInput.numberOr(6.421917)
+                val hasSavedView = prefs.getString("mapCenterLat", null)?.toDoubleOrNull() != null &&
                     prefs.getString("mapCenterLng", null)?.toDoubleOrNull() != null
-                map.evaluateJavascript("setPoints(${target.first},${target.second},$clat,$clng,${!hasSavedView},${!isModel});", null)
+                map.evaluateJavascript("setPoints($olat,$olng,$tlat,$tlng,${!hasSavedView},true);", null)
             }
         }
         @JavascriptInterface fun onMapMove(kind: String, lat: Double, lng: Double) {
@@ -1421,6 +1420,8 @@ class AdminActivity : Activity() {
                     testLatInput.setText(lat.toString()); testLngInput.setText(lng.toString())
                 } else if (kind == "object") {
                     objectLatInput.setText(lat.toString()); objectLngInput.setText(lng.toString())
+                } else if (kind == "test" && item?.objectType == "MODEL") {
+                    testLatInput.setText(lat.toString()); testLngInput.setText(lng.toString())
                 } else {
                     cameraLatInput.setText(lat.toString()); cameraLngInput.setText(lng.toString())
                 }
