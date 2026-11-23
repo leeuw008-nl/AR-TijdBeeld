@@ -210,7 +210,7 @@ class ModelArActivity : Activity() {
                 gravity = Gravity.CENTER_HORIZONTAL
             }
             val sensitivitySlider = SeekBar(this).apply {
-                max = 10000
+                max = 1000
                 progress = 100
                 setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
