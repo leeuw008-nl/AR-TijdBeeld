@@ -1161,9 +1161,12 @@ class AdminActivity : Activity() {
     }
 
     private fun objectTypeFromJson(item: JSONObject): String {
-        val rawType = item.optString("type", item.optString("objectType", "PHOTO")).uppercase(Locale.ROOT)
-        val hasModel = item.optString("modelUrl").isNotBlank() || item.optString("modelAsset").isNotBlank()
-        return if (rawType in setOf("MODEL", "3D", "3D_MODEL", "3DMODEL") || hasModel) "MODEL" else "PHOTO"
+        val rawType = item.optString("type", item.optString("objectType", "")).uppercase(Locale.ROOT)
+        return when (rawType) {
+            "MODEL", "3D", "3D_MODEL", "3DMODEL" -> "MODEL"
+            "PHOTO" -> "PHOTO"
+            else -> if (item.optString("modelUrl").isNotBlank() || item.optString("modelAsset").isNotBlank()) "MODEL" else "PHOTO"
+        }
     }
 
     private fun updateTypeFields() {
