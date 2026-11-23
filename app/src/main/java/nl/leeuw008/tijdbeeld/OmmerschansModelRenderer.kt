@@ -31,6 +31,12 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     @Volatile private var anchor: Anchor? = null
     @Volatile private var targetLatitude = 52.58737559898257
     @Volatile private var targetLongitude = 6.391727308884152
+    @Volatile private var objectLatitude = 52.58737559898257
+    @Volatile private var objectLongitude = 6.391727308884152
+    @Volatile private var testLatitude = Double.NaN
+    @Volatile private var testLongitude = Double.NaN
+    @Volatile private var hasTestTarget = false
+    @Volatile private var targetChosen = false
     private var anchorRequested = false
     private var standaloneTransformReady = false
     private val standaloneModel = FloatArray(16)
@@ -167,12 +173,33 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
 
 
     fun setGeoTarget(latitude: Double, longitude: Double) {
-        if (latitude.isFinite() && longitude.isFinite() && latitude in -90.0..90.0 && longitude in -180.0..180.0) {
-            targetLatitude = latitude
-            targetLongitude = longitude
-            anchor = null
-            anchorRequested = false
-        }
+        setGeoTargets(latitude, longitude, Double.NaN, Double.NaN)
+    }
+
+    fun setGeoTargets(objectLat: Double, objectLng: Double, testLat: Double, testLng: Double) {
+        if (!objectLat.isFinite() || !objectLng.isFinite() ||
+            objectLat !in -90.0..90.0 || objectLng !in -180.0..180.0) return
+        objectLatitude = objectLat
+        objectLongitude = objectLng
+        hasTestTarget = testLat.isFinite() && testLng.isFinite() &&
+            testLat in -90.0..90.0 && testLng in -180.0..180.0
+        testLatitude = testLat
+        testLongitude = testLng
+        targetLatitude = objectLat
+        targetLongitude = objectLng
+        targetChosen = false
+        anchor = null
+        anchorRequested = false
+    }
+
+    private fun distanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val earthRadius = 6371000.0
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = kotlin.math.sin(dLat / 2.0) * kotlin.math.sin(dLat / 2.0) +
+            kotlin.math.cos(Math.toRadians(lat1)) * kotlin.math.cos(Math.toRadians(lat2)) *
+            kotlin.math.sin(dLon / 2.0) * kotlin.math.sin(dLon / 2.0)
+        return 2.0 * earthRadius * kotlin.math.asin(kotlin.math.sqrt(a.coerceIn(0.0, 1.0)))
     }
 
     override fun onSurfaceChanged(gl: GL10?, w: Int, h: Int) {
@@ -223,9 +250,24 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                 report("Wacht op nauwkeurige locatie. GPS-afwijking: ${pose.horizontalAccuracy.toInt()} m.")
                 return
             }
+            if (!targetChosen) {
+                val objectDistance = distanceMeters(pose.latitude, pose.longitude, objectLatitude, objectLongitude)
+                val testDistance = if (hasTestTarget) {
+                    distanceMeters(pose.latitude, pose.longitude, testLatitude, testLongitude)
+                } else Double.POSITIVE_INFINITY
+                val useTestLocation = testDistance < objectDistance
+                targetLatitude = if (useTestLocation) testLatitude else objectLatitude
+                targetLongitude = if (useTestLocation) testLongitude else objectLongitude
+                targetChosen = true
+                report(if (useTestLocation) {
+                    "Testlocatie is het dichtstbij; 3D-model wordt daar geplaatst…"
+                } else {
+                    "Objectlocatie is het dichtstbij; 3D-model wordt daar geplaatst…"
+                })
+            }
             if (!anchorRequested && anchor == null) {
                 anchorRequested = true
-                report("Locatie gevonden. Het 3D-model wordt op de bouwlocatie geplaatst…")
+                report("Locatie gevonden. Het 3D-model wordt op de gekozen locatie geplaatst…")
                 // GLB origin: courtyard centre at the coordinates supplied by the selected photo.
                 // Axes in the delivered model are +X east, +Y up and -Z true north.
                 // ARCore Geospatial uses east/up/south, so identity rotation aligns the axes;
