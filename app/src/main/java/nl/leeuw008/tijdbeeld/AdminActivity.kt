@@ -559,7 +559,12 @@ class AdminActivity : Activity() {
                     if (!validateCurrentMedia()) return@actionButton
                     saveCurrent()
                     if (photos[selected].published) publishCatalog()
-                    loadPreview(imageUrl, showMessage = true)
+                    val savedItem = photos[selected]
+                    if (savedItem.objectType == "MODEL") {
+                        loadImageInto(savedItem.imageUrl, modelPhotoPreview, showMessage = true)
+                    } else {
+                        loadPreview(savedItem.imageUrl, showMessage = true)
+                    }
                 }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(4) })
                 saveDeleteActions.addView(actionButton("Verwijderen") { removePhoto() },
                     LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(4) })
@@ -572,7 +577,12 @@ class AdminActivity : Activity() {
                     if (!validateCurrentMedia()) return@actionButton
                     saveCurrent()
                     if (photos[selected].published) publishCatalog()
-                    loadPreview(imageUrl, showMessage = true)
+                    val savedItem = photos[selected]
+                    if (savedItem.objectType == "MODEL") {
+                        loadImageInto(savedItem.imageUrl, modelPhotoPreview, showMessage = true)
+                    } else {
+                        loadPreview(savedItem.imageUrl, showMessage = true)
+                    }
                 }, LinearLayout.LayoutParams(0, dp(48), 1f))
                 actions.addView(actionButton("Bekijk via camera") { saveCurrent(); openCamera() },
                     LinearLayout.LayoutParams(0, dp(48), 1f))
@@ -599,7 +609,7 @@ class AdminActivity : Activity() {
             }
             formPanel.addView(publishCheckbox)
             formPanel.addView(TextView(this).apply {
-                text = "Tip: sleep op de kaart de blauwe speld (Locatie) of rode speld (Testlocatie) naar de juiste plek."
+                text = "Tip: sleep op de kaart de blauwe speld (Locatie) of rode speld (Fotolocatie bij Foto / Testlocatie bij 3D-model) naar de juiste plek."
                 textSize = 12f
                 setTextColor(0xFF5B6873.toInt())
                 setPadding(2, dp(8), 2, dp(4))
