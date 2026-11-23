@@ -533,7 +533,7 @@ class AdminActivity : Activity() {
                             putExtra("standalone_preview", true)
                             putExtra("photoTitle", item.title)
                             putExtra("modelUrl", item.modelUrl)
-                            putExtra("modelAsset", item.modelAsset)
+                            putExtra("modelAsset", modelAssetFor(item))
                         })
                     }
                 }.apply {
@@ -746,7 +746,6 @@ class AdminActivity : Activity() {
         updatingFields = false
         updateTypeFields()
         refreshPhotoSelector()
-        if (p.objectType == "PHOTO") loadPreview(p.imageUrl)
         updateMapFromFields(fit = true)
     }
 
@@ -844,11 +843,16 @@ class AdminActivity : Activity() {
         saveAll()
     }
 
+    private fun modelAssetFor(item: PhotoConfig): String =
+        item.modelAsset.trim().ifBlank {
+            if (item.title.contains("Ommerschans", ignoreCase = true)) "ommerschans.glb" else ""
+        }
+
     private fun validateCurrentMedia(): Boolean {
         persistCurrentForm()
         val item = photos.getOrNull(selected) ?: return false
         if (item.objectType == "MODEL") {
-            if (item.modelUrl.isBlank() && item.modelAsset.isBlank()) {
+            if (item.modelUrl.isBlank() && modelAssetFor(item).isBlank()) {
                 Toast.makeText(this, "Vul eerst de URL van het GLB-bestand in.", Toast.LENGTH_LONG).show()
                 return false
             }
@@ -1156,7 +1160,7 @@ class AdminActivity : Activity() {
         val p = photos[selected]
         persistCurrentForm()
         if (p.objectType == "MODEL") {
-            if (p.modelUrl.isBlank() && p.modelAsset.isBlank()) { Toast.makeText(this, "Vul eerst de URL van het GLB-model in.", Toast.LENGTH_LONG).show(); return }
+            if (p.modelUrl.isBlank() && modelAssetFor(p).isBlank()) { Toast.makeText(this, "Vul eerst de URL van het GLB-model in.", Toast.LENGTH_LONG).show(); return }
             if (p.imageUrl.isBlank()) { Toast.makeText(this, "Vul ook de URL van de bijbehorende foto in. Deze is verplicht bij een 3D-model.", Toast.LENGTH_LONG).show(); return }
             startActivityForResult(Intent(this, ModelArActivity::class.java).apply {
                 putExtra("photoTitle", p.title)
@@ -1271,7 +1275,7 @@ class AdminActivity : Activity() {
         }
 
         val url = urlInput.text.toString().trim()
-        val asset = item.modelAsset.trim()
+        val asset = modelAssetFor(item)
         val sourceKey = when {
             url.isNotBlank() -> "url:$url"
             asset.isNotBlank() -> "asset:$asset"
@@ -1307,7 +1311,7 @@ class AdminActivity : Activity() {
             },
             standaloneMode = true,
             modelUrl = url.takeIf { it.isNotBlank() },
-            modelAsset = asset.ifBlank { "ommerschans.glb" }
+            modelAsset = asset
         )
         val surface = GLSurfaceView(this).apply {
             setEGLContextClientVersion(2)
@@ -1321,7 +1325,7 @@ class AdminActivity : Activity() {
                     putExtra("standalone_preview", true)
                     putExtra("photoTitle", current.title)
                     putExtra("modelUrl", current.modelUrl)
-                    putExtra("modelAsset", current.modelAsset)
+                    putExtra("modelAsset", modelAssetFor(current))
                 })
             }
         }
