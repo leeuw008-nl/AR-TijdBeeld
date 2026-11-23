@@ -344,19 +344,33 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         }
         val aspect = width.toFloat() / height.coerceAtLeast(1).toFloat()
         if (!standaloneFitReady && width > 0 && height > 0) {
-            // Fit the real model bounds to the available preview viewport. This accounts
-            // for portrait/landscape proportions and the model's depth at the default pitch.
-            val scale = 5.6f / maxOf(maxX - minX, maxY - minY, maxZ - minZ).coerceAtLeast(0.001f)
-            val pivotX = minX + (maxX - minX) * (standalonePivotXPercent / 100f)
-            val pivotY = minY + (maxY - minY) * (standalonePivotYPercent / 100f)
-            val pivotZ = minZ + (maxZ - minZ) * (standalonePivotZPercent / 100f)
+            // Recalculate bounds in this scope; the initial transform's bounds are local
+            // to its setup block and must not be referenced here.
+            var fitMinX = Float.POSITIVE_INFINITY; var fitMinY = Float.POSITIVE_INFINITY; var fitMinZ = Float.POSITIVE_INFINITY
+            var fitMaxX = Float.NEGATIVE_INFINITY; var fitMaxY = Float.NEGATIVE_INFINITY; var fitMaxZ = Float.NEGATIVE_INFINITY
+            for (part in parts) {
+                val vertices = part.vertices
+                var i = 0
+                while (i + 2 < vertices.limit()) {
+                    val x = vertices.get(i); val y = vertices.get(i + 1); val z = vertices.get(i + 2)
+                    fitMinX = minOf(fitMinX, x); fitMinY = minOf(fitMinY, y); fitMinZ = minOf(fitMinZ, z)
+                    fitMaxX = maxOf(fitMaxX, x); fitMaxY = maxOf(fitMaxY, y); fitMaxZ = maxOf(fitMaxZ, z)
+                    i += 3
+                }
+            }
+            // Use exactly the same model scale and pivot as the rendered preview.
+            val fitExtent = maxOf(fitMaxX - fitMinX, fitMaxY - fitMinY, fitMaxZ - fitMinZ).coerceAtLeast(0.001f)
+            val scale = (2.8f * standaloneModelScaleMultiplier.coerceIn(1f, 2f)) / fitExtent
+            val pivotX = fitMinX + (fitMaxX - fitMinX) * (standalonePivotXPercent / 100f)
+            val pivotY = fitMinY + (fitMaxY - fitMinY) * (standalonePivotYPercent / 100f)
+            val pivotZ = fitMinZ + (fitMaxZ - fitMinZ) * (standalonePivotZPercent / 100f)
             val pitch = Math.toRadians(standaloneRotationX.toDouble())
             val cp = kotlin.math.cos(pitch).toFloat()
             val sp = kotlin.math.sin(pitch).toFloat()
             var halfWidth = 0f
             var halfHeight = 0f
             var maxDepth = 0f
-            for (x in floatArrayOf(minX, maxX)) for (y in floatArrayOf(minY, maxY)) for (z in floatArrayOf(minZ, maxZ)) {
+            for (x in floatArrayOf(fitMinX, fitMaxX)) for (y in floatArrayOf(fitMinY, fitMaxY)) for (z in floatArrayOf(fitMinZ, fitMaxZ)) {
                 val px = (x - pivotX) * scale
                 val py = (y - pivotY) * scale
                 val pz = (z - pivotZ) * scale
