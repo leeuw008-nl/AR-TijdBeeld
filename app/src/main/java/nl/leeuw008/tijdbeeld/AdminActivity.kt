@@ -1042,7 +1042,7 @@ class AdminActivity : Activity() {
         saveCurrent()
         val publishablePhotos = photos.filter { item -> item.published && item.title.isNotBlank() &&
             item.imageUrl.startsWith("https://") &&
-            (if (item.objectType == "MODEL") item.modelUrl.startsWith("https://") || item.modelAsset.isNotBlank() else true) }
+            (if (item.objectType == "MODEL") item.modelUrl.startsWith("https://") || modelAssetFor(item).isNotBlank() else true) }
         if (publishablePhotos.isEmpty()) {
             Toast.makeText(this,
                 "Er is geen geldige foto geselecteerd voor openbare publicatie. De bestaande openbare foto's blijven behouden.",
@@ -1065,7 +1065,7 @@ class AdminActivity : Activity() {
                     .put("cameraLng", p.cameraLng)
                     .put("imageWidthMeters", p.imageWidthMeters.toDouble())
                     .put("imageHeightMeters", p.imageHeightMeters.toDouble())
-                    .put("type", p.objectType).put("modelUrl", p.modelUrl).put("modelAsset", p.modelAsset)
+                    .put("type", p.objectType).put("modelUrl", p.modelUrl).put("modelAsset", modelAssetFor(p))
                     .put("testLat", if (p.testLat.isFinite()) p.testLat else JSONObject.NULL)
                     .put("testLng", if (p.testLng.isFinite()) p.testLng else JSONObject.NULL)
                     .put("displayLocation", p.displayLocation).put("modelScale", p.modelScale.toDouble()))
@@ -1165,7 +1165,7 @@ class AdminActivity : Activity() {
             startActivityForResult(Intent(this, ModelArActivity::class.java).apply {
                 putExtra("photoTitle", p.title)
                 putExtra("modelUrl", p.modelUrl)
-                putExtra("modelAsset", p.modelAsset)
+                putExtra("modelAsset", modelAssetFor(p))
                 putExtra("objectLat", p.objectLat); putExtra("objectLng", p.objectLng)
                 putExtra("testLat", p.testLat); putExtra("testLng", p.testLng)
             }, 3001)
