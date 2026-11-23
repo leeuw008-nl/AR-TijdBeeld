@@ -48,6 +48,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     @Volatile private var standaloneRotationX = 13.5f
     @Volatile private var standaloneRotationY = 0f
     @Volatile private var standaloneCameraDistance = 7.5f
+    @Volatile private var standaloneAutoFitDistance = 7.5f
+    @Volatile private var standaloneFitReady = false
     @Volatile private var standaloneZoomSensitivity = 1.0f
     @Volatile private var standalonePivotXPercent = 50
     @Volatile private var standalonePivotYPercent = 50
@@ -161,7 +163,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         standaloneOffsetY = 0f
         standaloneRotationX = 13.5f
         standaloneRotationY = 0f
-        standaloneCameraDistance = 7.5f
+        standaloneCameraDistance = standaloneAutoFitDistance
     }
 
     fun zoomStandalone(factor: Float) {
@@ -204,6 +206,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
 
     override fun onSurfaceChanged(gl: GL10?, w: Int, h: Int) {
         width = w; height = h
+        if (standaloneMode) standaloneFitReady = false
         GLES20.glViewport(0,0,w,h)
         geometryChanged = true
     }
@@ -336,9 +339,41 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             val pivotZ = minZ + (maxZ - minZ) * (standalonePivotZPercent / 100f)
             Matrix.translateM(standaloneModel, 0, -pivotX, -pivotY, -pivotZ)
             standaloneTransformReady = true
+            standaloneFitReady = false
             report("3D-model geladen — vrij bekijken")
         }
         val aspect = width.toFloat() / height.coerceAtLeast(1).toFloat()
+        if (!standaloneFitReady && width > 0 && height > 0) {
+            // Fit the real model bounds to the available preview viewport. This accounts
+            // for portrait/landscape proportions and the model's depth at the default pitch.
+            val scale = 5.6f / maxOf(maxX - minX, maxY - minY, maxZ - minZ).coerceAtLeast(0.001f)
+            val pivotX = minX + (maxX - minX) * (standalonePivotXPercent / 100f)
+            val pivotY = minY + (maxY - minY) * (standalonePivotYPercent / 100f)
+            val pivotZ = minZ + (maxZ - minZ) * (standalonePivotZPercent / 100f)
+            val pitch = Math.toRadians(standaloneRotationX.toDouble())
+            val cp = kotlin.math.cos(pitch).toFloat()
+            val sp = kotlin.math.sin(pitch).toFloat()
+            var halfWidth = 0f
+            var halfHeight = 0f
+            var maxDepth = 0f
+            for (x in floatArrayOf(minX, maxX)) for (y in floatArrayOf(minY, maxY)) for (z in floatArrayOf(minZ, maxZ)) {
+                val px = (x - pivotX) * scale
+                val py = (y - pivotY) * scale
+                val pz = (z - pivotZ) * scale
+                val rotatedY = py * cp - pz * sp
+                val rotatedZ = py * sp + pz * cp
+                halfWidth = maxOf(halfWidth, kotlin.math.abs(px))
+                halfHeight = maxOf(halfHeight, kotlin.math.abs(rotatedY))
+                maxDepth = maxOf(maxDepth, rotatedZ)
+            }
+            val verticalTan = kotlin.math.tan(Math.toRadians(22.5)).toFloat()
+            val horizontalTan = (verticalTan * aspect.coerceAtLeast(0.1f)).coerceAtLeast(0.01f)
+            val fitDistance = maxOf(halfWidth / horizontalTan, halfHeight / verticalTan) / 0.92f +
+                maxDepth.coerceAtLeast(0f)
+            standaloneAutoFitDistance = fitDistance.coerceIn(0.65f, 24f)
+            standaloneCameraDistance = standaloneAutoFitDistance
+            standaloneFitReady = true
+        }
         Matrix.perspectiveM(projection, 0, 45f, aspect.coerceAtLeast(0.1f), 0.1f, 100f)
         val yaw = Math.toRadians(standaloneRotationY.toDouble())
         val pitch = Math.toRadians(standaloneRotationX.toDouble())
