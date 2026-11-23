@@ -1096,17 +1096,12 @@ class AdminActivity : Activity() {
         val p = photos[selected]
         if (p.objectType == "MODEL") {
             if (p.modelUrl.isBlank() && p.modelAsset.isBlank()) { Toast.makeText(this, "Vul eerst de URL van het GLB-model in.", Toast.LENGTH_LONG).show(); return }
-            if (p.displayLocation == "TEST" && (!p.testLat.isFinite() || !p.testLng.isFinite())) {
-                Toast.makeText(this, "Vul eerst de testlocatie van het object in.", Toast.LENGTH_LONG).show(); return
-            }
-            val useTest = p.displayLocation == "TEST"
             startActivityForResult(Intent(this, ModelArActivity::class.java).apply {
                 putExtra("photoTitle", p.title)
                 putExtra("modelUrl", p.modelUrl)
                 putExtra("modelAsset", p.modelAsset)
                 putExtra("objectLat", p.objectLat); putExtra("objectLng", p.objectLng)
-                putExtra("targetLat", if (useTest) p.testLat else p.objectLat)
-                putExtra("targetLng", if (useTest) p.testLng else p.objectLng)
+                putExtra("testLat", p.testLat); putExtra("testLng", p.testLng)
             }, 3001)
         } else {
             if (p.imageUrl.isBlank()) { Toast.makeText(this, "Vul eerst de URL van de foto in.", Toast.LENGTH_LONG).show(); return }
