@@ -58,7 +58,9 @@ class AdminActivity : Activity() {
     private lateinit var cameraLatInput: EditText
     private lateinit var cameraLngInput: EditText
     private lateinit var publishCheckbox: CheckBox
-    private lateinit var objectTypeSelector: Spinner
+    private lateinit var objectTypePhotoButton: Button
+    private lateinit var objectTypeModelButton: Button
+    private lateinit var objectTypeButtons: LinearLayout
     private lateinit var testLocationSelector: Spinner
     private lateinit var testLatInput: EditText
     private lateinit var testLngInput: EditText
@@ -76,7 +78,6 @@ class AdminActivity : Activity() {
     private var featuredPhotoId: String = ""
     private var sessionToken: String = ""
     private var updatingFields = false
-    private var typeSelectionByUser = false
     private var updatingFeaturedSelector = false
     private var pendingFeaturedPhotoId: String = ""
     private var mapReady = false
@@ -221,7 +222,7 @@ class AdminActivity : Activity() {
                         o.optString("id").ifBlank { UUID.randomUUID().toString() },
                         o.optString("source"), o.optString("sourceId"), o.optBoolean("published", false),
                         o.optDouble("imageHeightMeters", 1.65).toFloat().coerceIn(1f, 3f),
-                        o.optString("type", "PHOTO").uppercase(Locale.ROOT), o.optString("modelUrl"), o.optString("modelAsset"),
+                        objectTypeFromJson(o), o.optString("modelUrl"), o.optString("modelAsset"),
                         o.optDouble("testLat", Double.NaN), o.optDouble("testLng", Double.NaN),
                         o.optString("displayLocation", "OBJECT"), o.optDouble("modelScale", 1.0).toFloat().coerceIn(0.01f, 100f)
                     ))
@@ -294,7 +295,7 @@ class AdminActivity : Activity() {
                     o.optString("id").ifBlank { UUID.randomUUID().toString() },
                     o.optString("source"), o.optString("sourceId"), true,
                     o.optDouble("imageHeightMeters", 1.65).toFloat().coerceIn(1f, 3f),
-                    o.optString("type", "PHOTO").uppercase(Locale.ROOT), o.optString("modelUrl"), o.optString("modelAsset"),
+                    objectTypeFromJson(o), o.optString("modelUrl"), o.optString("modelAsset"),
                     o.optDouble("testLat", Double.NaN), o.optDouble("testLng", Double.NaN),
                     o.optString("displayLocation", "OBJECT"), o.optDouble("modelScale", 1.0).toFloat().coerceIn(0.01f, 100f)
                 ))
@@ -444,9 +445,12 @@ class AdminActivity : Activity() {
                 topMargin = dp(8); bottomMargin = dp(8)
             })
             addSection(formPanel, "Type object")
-            objectTypeSelector = Spinner(this)
-            objectTypeSelector.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, listOf("Foto", "3D-model"))
-            formPanel.addView(objectTypeSelector, LinearLayout.LayoutParams(-1, dp(48)))
+            objectTypeButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            objectTypePhotoButton = actionButton("Foto") { selectObjectType("PHOTO") }
+            objectTypeModelButton = actionButton("3D-model") { selectObjectType("MODEL") }
+            objectTypeButtons.addView(objectTypePhotoButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(5) })
+            objectTypeButtons.addView(objectTypeModelButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(5) })
+            formPanel.addView(objectTypeButtons)
             titleInput = addField(formPanel, "Titel / bijschrift", "Bijv. 1910 - Kantongerechtsgebouw").apply {
                 setSelectAllOnFocus(true)
             }
@@ -593,28 +597,6 @@ class AdminActivity : Activity() {
             }
         }
         if (currentSection != "home") {
-            // Spinner callbacks can also be fired by Android while the form is being
-            // initialized or when an existing object is loaded. Only a real user
-            // touch may change the stored object type.
-            objectTypeSelector.setOnTouchListener { _, event ->
-                if (event.action == android.view.MotionEvent.ACTION_DOWN) typeSelectionByUser = true
-                false
-            }
-            objectTypeSelector.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
-                override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                    if (typeSelectionByUser && !updatingFields && photos.isNotEmpty()) {
-                        typeSelectionByUser = false
-                        val item = photos[selected]
-                        val currentMedia = urlInput.text.toString().trim()
-                        if (item.objectType == "MODEL") item.modelUrl = currentMedia else item.imageUrl = currentMedia
-                        item.objectType = if (position == 1) "MODEL" else "PHOTO"
-                        urlInput.setText(if (item.objectType == "MODEL") item.modelUrl else item.imageUrl)
-                        updateTypeFields()
-                        persistCurrentForm()
-                    }
-                }
-            }
             testLocationSelector.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
                 override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
                 override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
@@ -720,7 +702,6 @@ class AdminActivity : Activity() {
         updatingFields = true
         val p = photos[selected]
         titleInput.setText(p.title); urlInput.setText(if (p.objectType == "MODEL") p.modelUrl else p.imageUrl)
-        objectTypeSelector.setSelection(if (p.objectType == "MODEL") 1 else 0, false)
         objectLatInput.setText(p.objectLat.toString()); objectLngInput.setText(p.objectLng.toString())
         testLatInput.setText(if (p.testLat.isFinite()) p.testLat.toString() else "")
         testLngInput.setText(if (p.testLng.isFinite()) p.testLng.toString() else "")
@@ -1158,9 +1139,38 @@ class AdminActivity : Activity() {
         loadImageInto(url, preview, showMessage)
     }
 
+    private fun styleObjectTypeButton(button: Button, selected: Boolean) {
+        val color = if (selected) 0xFF2E7D32.toInt() else 0xFFE6EBF0.toInt()
+        button.backgroundTintList = android.content.res.ColorStateList.valueOf(color)
+        button.setTextColor(if (selected) 0xFFFFFFFF.toInt() else 0xFF263746.toInt())
+    }
+
+    private fun selectObjectType(type: String) {
+        if (updatingFields || photos.isEmpty()) return
+        val item = photos[selected]
+        val currentMedia = urlInput.text.toString().trim()
+        if (item.objectType == "MODEL") item.modelUrl = currentMedia else item.imageUrl = currentMedia
+        item.objectType = if (type == "MODEL") "MODEL" else "PHOTO"
+        updatingFields = true
+        urlInput.setText(if (item.objectType == "MODEL") item.modelUrl else item.imageUrl)
+        updatingFields = false
+        updateTypeFields()
+        hasLocalEditsSinceLaunch = true
+        persistCurrentForm()
+        updateMapFromFields(fit = true)
+    }
+
+    private fun objectTypeFromJson(item: JSONObject): String {
+        val rawType = item.optString("type", item.optString("objectType", "PHOTO")).uppercase(Locale.ROOT)
+        val hasModel = item.optString("modelUrl").isNotBlank() || item.optString("modelAsset").isNotBlank()
+        return if (rawType in setOf("MODEL", "3D", "3D_MODEL", "3DMODEL") || hasModel) "MODEL" else "PHOTO"
+    }
+
     private fun updateTypeFields() {
         if (!::objectTypeSelector.isInitialized || photos.isEmpty()) return
         val isModel = photos[selected].objectType == "MODEL"
+        styleObjectTypeButton(objectTypePhotoButton, !isModel)
+        styleObjectTypeButton(objectTypeModelButton, isModel)
         cameraFieldsContainer.visibility = if (isModel) View.GONE else View.VISIBLE
         testFieldsContainer.visibility = if (isModel) View.VISIBLE else View.GONE
         preview.visibility = if (isModel) View.GONE else View.VISIBLE
@@ -1303,22 +1313,34 @@ class AdminActivity : Activity() {
         if (mapScreenActive) closeMapPage() else super.onBackPressed()
     }
 
+    private fun mapTarget(): Pair<Double, Double> {
+        val item = photos.getOrNull(selected)
+        if (item?.objectType == "MODEL" && item.displayLocation == "TEST") {
+            val lat = testLatInput.numberOr(item.testLat.takeIf { it.isFinite() } ?: item.objectLat)
+            val lng = testLngInput.numberOr(item.testLng.takeIf { it.isFinite() } ?: item.objectLng)
+            return Pair(lat, lng)
+        }
+        return Pair(objectLatInput.numberOr(52.518349), objectLngInput.numberOr(6.420889))
+    }
+
     private fun updateMapFromFields(fit: Boolean = false) {
-        val olat = objectLatInput.numberOr(52.518349)
-        val olng = objectLngInput.numberOr(6.420889)
-        val clat = cameraLatInput.numberOr(52.518263)
-        val clng = cameraLngInput.numberOr(6.421917)
-        val js = "if(window.setPoints){setPoints($olat,$olng,$clat,$clng,$fit);}"
+        val isModel = photos.getOrNull(selected)?.objectType == "MODEL"
+        val target = mapTarget()
+        val clat = if (isModel) target.first else cameraLatInput.numberOr(52.518263)
+        val clng = if (isModel) target.second else cameraLngInput.numberOr(6.421917)
+        val js = "if(window.setPoints){setPoints(${target.first},${target.second},$clat,$clng,$fit,${!isModel});}"
         if (mapReady && mapScreenActive) map.evaluateJavascript(js, null)
     }
 
     private fun mapHtml(): String {
-        val olat = objectLatInput.numberOr(52.518349)
-        val olng = objectLngInput.numberOr(6.420889)
-        val clat = cameraLatInput.numberOr(52.518263)
-        val clng = cameraLngInput.numberOr(6.421917)
-        val centerLat = prefs.getString("mapCenterLat", null)?.toDoubleOrNull() ?: (olat + clat) / 2.0
-        val centerLng = prefs.getString("mapCenterLng", null)?.toDoubleOrNull() ?: (olng + clng) / 2.0
+        val isModel = photos.getOrNull(selected)?.objectType == "MODEL"
+        val target = mapTarget()
+        val olat = target.first
+        val olng = target.second
+        val clat = if (isModel) olat else cameraLatInput.numberOr(52.518263)
+        val clng = if (isModel) olng else cameraLngInput.numberOr(6.421917)
+        val centerLat = if (isModel) olat else prefs.getString("mapCenterLat", null)?.toDoubleOrNull() ?: (olat + clat) / 2.0
+        val centerLng = if (isModel) olng else prefs.getString("mapCenterLng", null)?.toDoubleOrNull() ?: (olng + clng) / 2.0
         val zoom = prefs.getInt("mapZoom", 17)
         val mapBackground = prefs.getString("map_background", "pdok")
         val tileLayerJs = when (mapBackground) {
@@ -1348,8 +1370,9 @@ class AdminActivity : Activity() {
         var cameraPin=L.marker([${clat},${clng}],{draggable:true,icon:labeledIcon('Fotograaf','#d52b35')}).addTo(map);
         objectPin.on('dragend',function(){var p=objectPin.getLatLng();TijdBeeld.onMapMove('object',p.lat,p.lng);});
         cameraPin.on('dragend',function(){var p=cameraPin.getLatLng();TijdBeeld.onMapMove('camera',p.lat,p.lng);});
-        function setPoints(a,b,c,d,fit){
+        function setPoints(a,b,c,d,fit,showCamera){
           objectPin.setLatLng([a,b]);cameraPin.setLatLng([c,d]);
+          cameraPin.setOpacity(showCamera===false?0:1);
           if(fit!==false){
             var center=L.latLng((a+c)/2,(b+d)/2);
             map.setView(center,17,{animate:false});
@@ -1377,18 +1400,26 @@ class AdminActivity : Activity() {
                 mapReady = true
                 val olat = objectLatInput.numberOr(52.518349)
                 val olng = objectLngInput.numberOr(6.420889)
-                val clat = cameraLatInput.numberOr(52.518263)
-                val clng = cameraLngInput.numberOr(6.421917)
-                val hasSavedView = prefs.getString("mapCenterLat", null)?.toDoubleOrNull() != null &&
+                val isModel = photos.getOrNull(selected)?.objectType == "MODEL"
+                val target = mapTarget()
+                val clat = if (isModel) target.first else cameraLatInput.numberOr(52.518263)
+                val clng = if (isModel) target.second else cameraLngInput.numberOr(6.421917)
+                val hasSavedView = !isModel && prefs.getString("mapCenterLat", null)?.toDoubleOrNull() != null &&
                     prefs.getString("mapCenterLng", null)?.toDoubleOrNull() != null
-                map.evaluateJavascript("setPoints($olat,$olng,$clat,$clng,${!hasSavedView});", null)
+                map.evaluateJavascript("setPoints(${target.first},${target.second},$clat,$clng,${!hasSavedView},${!isModel});", null)
             }
         }
         @JavascriptInterface fun onMapMove(kind: String, lat: Double, lng: Double) {
             runOnUiThread {
                 updatingFields = true
-                if (kind == "object") { objectLatInput.setText(lat.toString()); objectLngInput.setText(lng.toString()) }
-                else { cameraLatInput.setText(lat.toString()); cameraLngInput.setText(lng.toString()) }
+                val item = photos.getOrNull(selected)
+                if (kind == "object" && item?.objectType == "MODEL" && item.displayLocation == "TEST") {
+                    testLatInput.setText(lat.toString()); testLngInput.setText(lng.toString())
+                } else if (kind == "object") {
+                    objectLatInput.setText(lat.toString()); objectLngInput.setText(lng.toString())
+                } else {
+                    cameraLatInput.setText(lat.toString()); cameraLngInput.setText(lng.toString())
+                }
                 updatingFields = false
                 hasLocalEditsSinceLaunch = true
             }
