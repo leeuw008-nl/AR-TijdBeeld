@@ -80,9 +80,11 @@ class ModelArActivity : Activity() {
             modelUrl = intent.getStringExtra("modelUrl")?.takeIf { it.isNotBlank() },
             modelAsset = intent.getStringExtra("modelAsset")?.takeIf { it.isNotBlank() } ?: "ommerschans.glb"
         ).apply {
-            if (!standalonePreview) setGeoTarget(
-                intent.getDoubleExtra("targetLat", intent.getDoubleExtra("objectLat", 52.58737559898257)),
-                intent.getDoubleExtra("targetLng", intent.getDoubleExtra("objectLng", 6.391727308884152))
+            if (!standalonePreview) setGeoTargets(
+                intent.getDoubleExtra("objectLat", 52.58737559898257),
+                intent.getDoubleExtra("objectLng", 6.391727308884152),
+                intent.getDoubleExtra("testLat", Double.NaN),
+                intent.getDoubleExtra("testLng", Double.NaN)
             )
         }
         glView = GLSurfaceView(this).apply {
