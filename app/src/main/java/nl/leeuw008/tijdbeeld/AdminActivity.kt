@@ -1163,7 +1163,7 @@ class AdminActivity : Activity() {
     private fun objectTypeFromJson(item: JSONObject): String {
         val rawType = item.optString("type", item.optString("objectType", "")).uppercase(Locale.ROOT)
         return when (rawType) {
-            "MODEL", "3D", "3D_MODEL", "3DMODEL" -> "MODEL"
+            "MODEL", "3D", "3D_MODEL", "3DMODEL", "3D-MODEL", "3D MODEL" -> "MODEL"
             "PHOTO" -> "PHOTO"
             else -> if (item.optString("modelUrl").isNotBlank() || item.optString("modelAsset").isNotBlank()) "MODEL" else "PHOTO"
         }
@@ -1342,6 +1342,7 @@ class AdminActivity : Activity() {
         val olng = target.second
         val clat = if (isModel) olat else cameraLatInput.numberOr(52.518263)
         val clng = if (isModel) olng else cameraLngInput.numberOr(6.421917)
+        val pinLabel = if (isModel) "3D-model" else "Object"
         val centerLat = if (isModel) olat else prefs.getString("mapCenterLat", null)?.toDoubleOrNull() ?: (olat + clat) / 2.0
         val centerLng = if (isModel) olng else prefs.getString("mapCenterLng", null)?.toDoubleOrNull() ?: (olng + clng) / 2.0
         val zoom = prefs.getInt("mapZoom", 17)
@@ -1369,7 +1370,7 @@ class AdminActivity : Activity() {
           return L.divIcon({className:'',iconSize:[112,40],iconAnchor:[15,36],
             html:'<div class="pin-label">'+svg+'<span>'+label+'</span></div>'});
         }
-        var objectPin=L.marker([${olat},${olng}],{draggable:true,icon:labeledIcon('Object','#1769d2')}).addTo(map);
+        var objectPin=L.marker([${olat},${olng}],{draggable:true,icon:labeledIcon('${pinLabel}','#1769d2')}).addTo(map);
         var cameraPin=L.marker([${clat},${clng}],{draggable:true,icon:labeledIcon('Fotograaf','#d52b35')}).addTo(map);
         objectPin.on('dragend',function(){var p=objectPin.getLatLng();TijdBeeld.onMapMove('object',p.lat,p.lng);});
         cameraPin.on('dragend',function(){var p=cameraPin.getLatLng();TijdBeeld.onMapMove('camera',p.lat,p.lng);});
