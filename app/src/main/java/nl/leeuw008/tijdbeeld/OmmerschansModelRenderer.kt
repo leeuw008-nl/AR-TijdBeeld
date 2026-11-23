@@ -36,6 +36,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     @Volatile private var testLatitude = Double.NaN
     @Volatile private var testLongitude = Double.NaN
     @Volatile private var hasTestTarget = false
+    @Volatile private var maxHorizontalAccuracyMeters = 5.0
+    @Volatile private var maxHeadingAccuracyDegrees = 15.0
     @Volatile private var targetChosen = false
     private var anchorRequested = false
     private var standaloneTransformReady = false
@@ -85,6 +87,11 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
 
     private fun report(message: String) {
         if (message != lastStatus) { lastStatus = message; status(message) }
+    }
+
+    fun setGeospatialAccuracyThresholds(horizontalMeters: Double, headingDegrees: Double) {
+        if (horizontalMeters.isFinite()) maxHorizontalAccuracyMeters = horizontalMeters.coerceIn(1.0, 30.0)
+        if (headingDegrees.isFinite()) maxHeadingAccuracyDegrees = headingDegrees.coerceIn(1.0, 45.0)
     }
 
     fun setSession(value: Session) {
@@ -249,8 +256,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                 return
             }
             val pose = earth.cameraGeospatialPose
-            if (pose.horizontalAccuracy > 10.0 || pose.headingAccuracy > 15.0) {
-                report("Wacht op nauwkeurige locatie. GPS-afwijking: ${pose.horizontalAccuracy.toInt()} m.")
+            if (pose.horizontalAccuracy > maxHorizontalAccuracyMeters || pose.headingAccuracy > maxHeadingAccuracyDegrees) {
+                report("Wacht op nauwkeurige locatie. GPS: ${pose.horizontalAccuracy.toInt()} m (max ${maxHorizontalAccuracyMeters.toInt()} m); kompas: ${pose.headingAccuracy.toInt()}° (max ${maxHeadingAccuracyDegrees.toInt()}°).")
                 return
             }
             if (!targetChosen) {
