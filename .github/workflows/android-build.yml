@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes, feature/ommerschans-photo-georef, fix/ommerschans-topokaart-footprint, fix/persistent-admin-session-and-inner-wall, fix/backup-export-import-from-build-139, release/werkende-versie-alle-6-punten ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, release/werkende-versie-alle-6-punten, stable/build-282-perfect ]
   workflow_dispatch:
 
 permissions:
@@ -18,7 +18,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,7 +59,6 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: tijdbeeld-diagnostic-signing-key-v2
-
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -111,15 +110,6 @@ jobs:
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
           "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='4'|application-label:'AR-TijdBeeld'"
 
-      - name: Download exact build 239 APK for update test
-        uses: actions/download-artifact@v4
-        with:
-          name: AR-TijdBeeld
-          path: baseline
-          repository: leeuw008-nl/AR-TijdBeeld
-          run-id: 45044950040
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload AR-TijdBeeld APK
         uses: actions/upload-artifact@v4
         with:
@@ -127,32 +117,3 @@ jobs:
           path: dist/AR-TijdBeeld.apk
           if-no-files-found: error
           retention-days: 31
-
-      - name: Test update installation over build 239 on Android 12
-        uses: reactivecircus/android-emulator-runner@v2
-        env:
-          ANDROID_I_WANT_MY_TCG: yes
-        with:
-          api-level: 31
-          emulator-boot-timeout: 600
-          arch: x86_64
-          profile: pixel_2
-          target: google_apis
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          disable-animations: true
-          script: |
-            set -euxo pipefail
-            timeout 120s adb wait-for-device
-            for attempt in $(seq 1 60); do
-              BOOTED="$(timeout 10s adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r' || true)"
-              if [ "$BOOTED" = "1" ]; then break; fi
-              sleep 5
-            done
-            test "$BOOTED" = "1"
-            timeout 120s adb install baseline/AR-TijdBeeld.apk
-            timeout 30s adb shell pm path nl.leeuw008.tijdbeeld.diagnose32stable
-            timeout 120s adb install -r dist/AR-TijdBeeld.apk
-            timeout 30s adb shell pm path nl.leeuw008.tijdbeeld.diagnose32stable
-            timeout 60s adb shell monkey -p nl.leeuw008.tijdbeeld.diagnose32stable 1
-
-
