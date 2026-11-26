@@ -11,6 +11,7 @@ import android.opengl.Matrix
 import com.google.ar.core.Anchor
 import com.google.ar.core.Earth
 import com.google.ar.core.Session
+import com.google.ar.core.Pose
 import com.google.ar.core.TrackingState
 import org.json.JSONObject
 import java.nio.ByteBuffer
@@ -29,6 +30,9 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     private val glModelTextures = mutableMapOf<Int, Int>()
     @Volatile private var loadStarted = false
     @Volatile private var anchor: Anchor? = null
+    @Volatile private var freeAnchor: Anchor? = null
+    @Volatile private var freePlacementMode = false
+    @Volatile private var freePlacementDistanceMeters = 10f
     @Volatile private var targetLatitude = 52.58737559898257
     @Volatile private var targetLongitude = 6.391727308884152
     @Volatile private var objectLatitude = 52.58737559898257
@@ -36,6 +40,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     @Volatile private var testLatitude = Double.NaN
     @Volatile private var testLongitude = Double.NaN
     @Volatile private var hasTestTarget = false
+    @Volatile private var maxHorizontalAccuracyMeters = 5.0
+    @Volatile private var maxHeadingAccuracyDegrees = 15.0
     @Volatile private var targetChosen = false
     private var anchorRequested = false
     private var standaloneTransformReady = false
@@ -85,6 +91,31 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
 
     private fun report(message: String) {
         if (message != lastStatus) { lastStatus = message; status(message) }
+    }
+
+    fun setFreePlacementMode(enabled: Boolean) {
+        if (freePlacementMode == enabled) return
+        freePlacementMode = enabled
+        freeAnchor?.detach()
+        freeAnchor = null
+        report(if (enabled) "Vrije locatie geselecteerd; model wordt vóór je geplaatst…" else "Test locatie geselecteerd; geografische plaatsing wordt gebruikt…")
+    }
+
+    fun setFreePlacementDistance(distanceMeters: Float) {
+        if (!distanceMeters.isFinite()) return
+        val next = distanceMeters.coerceIn(2f, 50f)
+        if (kotlin.math.abs(next - freePlacementDistanceMeters) < 0.01f) return
+        freePlacementDistanceMeters = next
+        if (freePlacementMode) {
+            freeAnchor?.detach()
+            freeAnchor = null
+            report("Afstand ingesteld op ${next.toInt()} meter; vrije plaatsing wordt bijgewerkt…")
+        }
+    }
+
+    fun setGeospatialAccuracyThresholds(horizontalMeters: Double, headingDegrees: Double) {
+        if (horizontalMeters.isFinite()) maxHorizontalAccuracyMeters = horizontalMeters.coerceIn(1.0, 30.0)
+        if (headingDegrees.isFinite()) maxHeadingAccuracyDegrees = headingDegrees.coerceIn(1.0, 45.0)
     }
 
     fun setSession(value: Session) {
@@ -243,14 +274,69 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             GLES20.glDisableVertexAttribArray(cameraPos); GLES20.glDisableVertexAttribArray(cameraUv)
 
             val earth = s.earth
+            val parts = modelData
+
+            // Vrije locatie gebruikt een lokaal ARCore-anker vóór de camera.
+            // De geografische heading lijnt het model uit met het ware noorden;
+            // een nauwkeurige GPS-positie is voor deze stand niet vereist.
+            if (freePlacementMode) {
+                var free = freeAnchor
+                if (free == null) {
+                    if (earth == null || earth.earthState != Earth.EarthState.ENABLED ||
+                        earth.trackingState != TrackingState.TRACKING) {
+                        report("Vrije locatie: ARCore wacht op geografische kompasrichting…")
+                        return
+                    }
+                    val geoPose = earth.cameraGeospatialPose
+                    val cameraPose = frame.camera.pose
+                    val forward = cameraPose.rotateVector(floatArrayOf(0f, 0f, -1f))
+                    val horizontalLength = kotlin.math.sqrt(forward[0] * forward[0] + forward[2] * forward[2])
+                    if (horizontalLength < 0.001f || !geoPose.heading.isFinite()) {
+                        report("Vrije locatie: kompasrichting nog niet beschikbaar…")
+                        return
+                    }
+                    val cameraYaw = kotlin.math.atan2(-forward[0], -forward[2])
+                    val northAlignedYaw = cameraYaw - Math.toRadians(geoPose.heading)
+                    val halfYaw = (northAlignedYaw / 2.0).toFloat()
+                    val rotation = floatArrayOf(0f, kotlin.math.sin(halfYaw), 0f, kotlin.math.cos(halfYaw))
+                    val cameraPosition = cameraPose.translation
+                    val distance = freePlacementDistanceMeters
+                    val position = floatArrayOf(
+                        cameraPosition[0] + forward[0] / horizontalLength * distance,
+                        cameraPosition[1] - 1.4f,
+                        cameraPosition[2] + forward[2] / horizontalLength * distance
+                    )
+                    free = s.createAnchor(Pose(position, rotation))
+                    freeAnchor = free
+                    report("Vrije locatie geplaatst op ${distance.toInt()} m; noordoriëntatie uit ARCore-kompas (${geoPose.headingAccuracy.toInt()}° nauwkeurig).")
+                }
+                if (free.trackingState == TrackingState.TRACKING && parts != null) {
+                    frame.camera.getViewMatrix(view, 0)
+                    frame.camera.getProjectionMatrix(projection, 0, 0.1f, 1000f)
+                    free.pose.toMatrix(model, 0)
+                    Matrix.multiplyMM(mv, 0, view, 0, model, 0)
+                    Matrix.multiplyMM(mvp, 0, projection, 0, mv, 0)
+                    GLES20.glEnable(GLES20.GL_DEPTH_TEST)
+                    GLES20.glEnable(GLES20.GL_CULL_FACE)
+                    GLES20.glUseProgram(modelProgram)
+                    GLES20.glUniformMatrix4fv(modelMvp, 1, false, mvp, 0)
+                    drawModelParts(parts)
+                    GLES20.glDisable(GLES20.GL_CULL_FACE)
+                }
+                return
+            }
+
             if (earth == null || earth.earthState != Earth.EarthState.ENABLED ||
                 earth.trackingState != TrackingState.TRACKING) {
                 report("ARCore zoekt GPS-, kompas- en Geospatial-tracking…")
                 return
             }
             val pose = earth.cameraGeospatialPose
-            if (pose.horizontalAccuracy > 10.0 || pose.headingAccuracy > 15.0) {
-                report("Wacht op nauwkeurige locatie. GPS-afwijking: ${pose.horizontalAccuracy.toInt()} m.")
+            // Alleen bij de eerste geografische plaatsing eisen we nauwkeurigheid.
+            // Een reeds geplaatst model blijft zichtbaar bij tijdelijke meetruis.
+            if (!targetChosen && (pose.horizontalAccuracy > maxHorizontalAccuracyMeters ||
+                pose.headingAccuracy > maxHeadingAccuracyDegrees)) {
+                report("Wacht op nauwkeurige locatie. GPS: ${pose.horizontalAccuracy.toInt()} m (max ${maxHorizontalAccuracyMeters.toInt()} m); kompas: ${pose.headingAccuracy.toInt()}° (max ${maxHeadingAccuracyDegrees.toInt()}°).")
                 return
             }
             if (!targetChosen) {
@@ -289,7 +375,6 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                 }
             }
             val a = anchor
-            val parts = modelData
             if (a == null || a.trackingState != TrackingState.TRACKING || parts == null) return
             frame.camera.getViewMatrix(view,0)
             frame.camera.getProjectionMatrix(projection,0,0.1f,1000f)
