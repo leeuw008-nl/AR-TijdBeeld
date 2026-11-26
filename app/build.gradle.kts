@@ -8,13 +8,13 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "nl.leeuw008.tijdbeeld.diagnose32stable"
+        applicationId = "nl.leeuw008.tijdbeeld.installtest323"
         minSdk = 24
         targetSdk = 32
-        versionCode = 4
-        versionName = "0.1.4"
+        versionCode = 1
+        versionName = "0.1.4-installtest"
         // Required for ARCore Geospatial API authorization.
-        manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
+        manifestPlaceholders["appLabel"] = "AR-TijdBeeld test"
         manifestPlaceholders["arcoreApiKey"] = System.getenv("ARCORE_API_KEY") ?: ""
     }
 
