@@ -45,6 +45,7 @@ class MainActivity : Activity(), SensorEventListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        android.util.Log.i("TijdBeeldBuild", "Minimale installatietest vanaf build 317")
         buildingLocation.latitude = intent.getDoubleExtra("objectLat", 52.518349)
         buildingLocation.longitude = intent.getDoubleExtra("objectLng", 6.420889)
         photographerLocation.latitude = intent.getDoubleExtra("cameraLat", 52.518263)
