@@ -2,6 +2,7 @@ package nl.leeuw008.tijdbeeld
 
 import android.Manifest
 import android.app.Activity
+import android.graphics.Color
 import android.content.res.Configuration
 import android.content.pm.PackageManager
 import android.opengl.GLSurfaceView
@@ -29,6 +30,10 @@ class ModelArActivity : Activity() {
     private lateinit var glView: GLSurfaceView
     private lateinit var renderer: OmmerschansModelRenderer
     private lateinit var status: TextView
+    private lateinit var placementControls: LinearLayout
+    private lateinit var freeDistanceLabel: TextView
+    private var freePlacementDistance = 10
+    private var freePlacementEnabled = false
     private var session: Session? = null
     private var installRequested = false
     private var permissionRequested = false
@@ -61,30 +66,36 @@ class ModelArActivity : Activity() {
         uiHandler.postDelayed(hideSensitivityControls, 2000L)
     }
     private val standalonePreview: Boolean by lazy { intent.getBooleanExtra("standalone_preview", false) }
-    private val photoTitle: String by lazy {
-        if (standalonePreview) "3D-model bekijken" else
-            intent.getStringExtra("photoTitle")?.takeIf { it.isNotBlank() } ?: OMMERSCHANS_PHOTO_TITLE
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         status = TextView(this).apply {
-            text = photoTitle + "\nCamera en geografische plaatsing starten…"
-            textSize = 16f
-            setTextColor(0xFFFFFFFF.toInt())
-            setShadowLayer(5f, 1f, 1f, 0xFF000000.toInt())
-            setPadding(dp(8), dp(10), dp(12), dp(10))
+            text = "Camera en geografische plaatsing starten…"
+            textSize = 12f
+            setTextColor(0xFF263746.toInt())
+            setPadding(dp(12), dp(6), dp(12), dp(6))
             gravity = Gravity.CENTER_VERTICAL
-            maxLines = 3
+            maxLines = 2
             setTextIsSelectable(true)
+            visibility = if (standalonePreview) View.GONE else View.VISIBLE
         }
-        renderer = OmmerschansModelRenderer(this, { message ->
-            runOnUiThread { status.text = photoTitle + "\n" + message }
-        }, standaloneMode = standalonePreview).apply {
-            if (!standalonePreview) setGeoTarget(
-                intent.getDoubleExtra("objectLat", 52.58737559898257),
-                intent.getDoubleExtra("objectLng", 6.391727308884152)
-            )
+        freePlacementDistance = getSharedPreferences("tijdbeeld_ar_settings", MODE_PRIVATE)
+            .getInt("free_placement_distance_m", 10).coerceIn(2, 50)
+        renderer = OmmerschansModelRenderer(
+            this,
+            { message -> runOnUiThread { status.text = message } },
+            standaloneMode = standalonePreview,
+            modelUrl = intent.getStringExtra("modelUrl")?.takeIf { it.isNotBlank() },
+            modelAsset = intent.getStringExtra("modelAsset")?.takeIf { it.isNotBlank() } ?: "ommerschans.glb"
+        ).apply {
+            if (!standalonePreview) {
+                setGeoTargets(
+                    intent.getDoubleExtra("objectLat", 52.58737559898257),
+                    intent.getDoubleExtra("objectLng", 6.391727308884152),
+                    intent.getDoubleExtra("testLat", Double.NaN),
+                    intent.getDoubleExtra("testLng", Double.NaN)
+                )
+                setFreePlacementDistance(freePlacementDistance)
+            }
         }
         glView = GLSurfaceView(this).apply {
             setEGLContextClientVersion(2)
@@ -175,19 +186,88 @@ class ModelArActivity : Activity() {
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(0xCC102A43.toInt())
+            setPadding(dp(12), dp(8), dp(16), dp(8))
+            setBackgroundColor(0xFF1769AA.toInt())
         }
         val backButton = TextView(this).apply {
-            text = "←"
-            textSize = 27f
+            text = "‹"
+            textSize = 34f
             setTextColor(0xFFFFFFFF.toInt())
             gravity = Gravity.CENTER
             contentDescription = "Terug"
+            setPadding(0, 0, dp(12), 0)
             setOnClickListener { finish() }
         }
-        header.addView(backButton, LinearLayout.LayoutParams(dp(56), dp(56)))
-        header.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(backButton, LinearLayout.LayoutParams(dp(48), dp(48)))
+        header.addView(TextView(this).apply {
+            text = "AR-TijdBeeld"
+            textSize = 21f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(0xFFFFFFFF.toInt())
+        }, LinearLayout.LayoutParams(0, -2, 1f))
         root.addView(header, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        if (!standalonePreview) {
+            root.addView(status, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
+                topMargin = dp(64)
+            })
+
+            val modeRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+            }
+            fun modeButton(label: String, freeMode: Boolean) = TextView(this).apply {
+                text = label
+                textSize = 14f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                setPadding(dp(12), dp(9), dp(12), dp(9))
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    freePlacementEnabled = freeMode
+                    renderer.setPlacementMode(freeMode)
+                    updatePlacementControls(modeRow)
+                }
+            }
+            val testModeButton = modeButton("Test locatie", false)
+            val freeModeButton = modeButton("Vrije locatie", true)
+            modeRow.addView(testModeButton, LinearLayout.LayoutParams(0, -2, 1f))
+            modeRow.addView(freeModeButton, LinearLayout.LayoutParams(0, -2, 1f))
+            freeDistanceLabel = TextView(this).apply {
+                textSize = 13f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                text = "Afstand: ${freePlacementDistance} m"
+            }
+            val distanceSlider = SeekBar(this).apply {
+                max = 48
+                progress = freePlacementDistance - 2
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                        if (!fromUser) return
+                        freePlacementDistance = progress + 2
+                        freeDistanceLabel.text = "Afstand: ${freePlacementDistance} m"
+                        getSharedPreferences("tijdbeeld_ar_settings", MODE_PRIVATE).edit()
+                            .putInt("free_placement_distance_m", freePlacementDistance).apply()
+                        renderer.setFreePlacementDistance(freePlacementDistance)
+                    }
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+                })
+            }
+            placementControls = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(8), dp(7), dp(8), dp(5))
+                setBackgroundColor(0xCC102A43.toInt())
+                addView(modeRow, LinearLayout.LayoutParams(-1, -2))
+                addView(freeDistanceLabel, LinearLayout.LayoutParams(-1, -2))
+                addView(distanceSlider, LinearLayout.LayoutParams(-1, -2))
+            }
+            root.addView(placementControls, FrameLayout.LayoutParams(dp(280), -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                bottomMargin = dp(12)
+            })
+            updatePlacementControls(modeRow)
+        }
 
         if (standalonePreview) {
             val sensitivityLabel = TextView(this).apply {
@@ -197,7 +277,7 @@ class ModelArActivity : Activity() {
                 gravity = Gravity.CENTER_HORIZONTAL
             }
             val sensitivitySlider = SeekBar(this).apply {
-                max = 10000
+                max = 1000
                 progress = 100
                 setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -235,7 +315,7 @@ class ModelArActivity : Activity() {
                 }
             }
             root.addView(sensitivityControls, FrameLayout.LayoutParams(dp(280), -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
-                bottomMargin = dp(116)
+                bottomMargin = dp(170)
             })
 
             fun controlButton(label: String, action: () -> Unit): TextView =
@@ -300,6 +380,19 @@ class ModelArActivity : Activity() {
         root.requestFocus()
         setContentView(root)
         requestPermissionsIfNeeded()
+    }
+
+    private fun updatePlacementControls(modeRow: LinearLayout) {
+        if (!::placementControls.isInitialized) return
+        val testButton = modeRow.getChildAt(0) as? TextView
+        val freeButton = modeRow.getChildAt(1) as? TextView
+        testButton?.setBackgroundColor(if (!freePlacementEnabled) 0xFF1769AA.toInt() else 0xFF526779.toInt())
+        freeButton?.setBackgroundColor(if (freePlacementEnabled) 0xFF1769AA.toInt() else 0xFF526779.toInt())
+        val visible = if (freePlacementEnabled) View.VISIBLE else View.GONE
+        freeDistanceLabel.visibility = visible
+        if (placementControls.childCount > 0) {
+            placementControls.getChildAt(2).visibility = visible
+        }
     }
 
     private fun showPivotDialog() {

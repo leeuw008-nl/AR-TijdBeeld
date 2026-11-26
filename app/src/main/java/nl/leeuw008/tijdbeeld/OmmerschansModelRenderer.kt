@@ -21,7 +21,7 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
 /** Minimal GLB 2.0 triangle renderer. Geometry is kept in model metres. */
-class OmmerschansModelRenderer(private val context: Context, private val status: (String) -> Unit, private val standaloneMode: Boolean = false) : GLSurfaceView.Renderer {
+class OmmerschansModelRenderer(private val context: Context, private val status: (String) -> Unit, private val standaloneMode: Boolean = false, private val modelUrl: String? = null, private val modelAsset: String = "ommerschans.glb", private val standaloneModelScaleMultiplier: Float = 1f) : GLSurfaceView.Renderer {
     @Volatile private var session: Session? = null
     @Volatile private var lastStatus = ""
     @Volatile private var modelData: List<Part>? = null
@@ -31,6 +31,16 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     @Volatile private var anchor: Anchor? = null
     @Volatile private var targetLatitude = 52.58737559898257
     @Volatile private var targetLongitude = 6.391727308884152
+    @Volatile private var objectLatitude = 52.58737559898257
+    @Volatile private var objectLongitude = 6.391727308884152
+    @Volatile private var testLatitude = Double.NaN
+    @Volatile private var testLongitude = Double.NaN
+    @Volatile private var hasTestTarget = false
+    @Volatile private var targetChosen = false
+    @Volatile private var freePlacementMode = false
+    @Volatile private var freePlacementDistanceMeters = 10
+    @Volatile private var freeTargetChosen = false
+    @Volatile private var anchorRequestGeneration = 0
     private var anchorRequested = false
     private var standaloneTransformReady = false
     private val standaloneModel = FloatArray(16)
@@ -42,6 +52,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     @Volatile private var standaloneRotationX = 13.5f
     @Volatile private var standaloneRotationY = 0f
     @Volatile private var standaloneCameraDistance = 7.5f
+    @Volatile private var standaloneAutoFitDistance = 7.5f
+    @Volatile private var standaloneFitReady = false
     @Volatile private var standaloneZoomSensitivity = 1.0f
     @Volatile private var standalonePivotXPercent = 50
     @Volatile private var standalonePivotYPercent = 50
@@ -155,7 +167,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         standaloneOffsetY = 0f
         standaloneRotationX = 13.5f
         standaloneRotationY = 0f
-        standaloneCameraDistance = 7.5f
+        standaloneCameraDistance = standaloneAutoFitDistance
     }
 
     fun zoomStandalone(factor: Float) {
@@ -167,16 +179,82 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
 
 
     fun setGeoTarget(latitude: Double, longitude: Double) {
-        if (latitude.isFinite() && longitude.isFinite() && latitude in -90.0..90.0 && longitude in -180.0..180.0) {
-            targetLatitude = latitude
-            targetLongitude = longitude
+        setGeoTargets(latitude, longitude, Double.NaN, Double.NaN)
+    }
+
+    fun setGeoTargets(objectLat: Double, objectLng: Double, testLat: Double, testLng: Double) {
+        if (!objectLat.isFinite() || !objectLng.isFinite() ||
+            objectLat !in -90.0..90.0 || objectLng !in -180.0..180.0) return
+        objectLatitude = objectLat
+        objectLongitude = objectLng
+        hasTestTarget = testLat.isFinite() && testLng.isFinite() &&
+            testLat in -90.0..90.0 && testLng in -180.0..180.0
+        testLatitude = testLat
+        testLongitude = testLng
+        targetLatitude = objectLat
+        targetLongitude = objectLng
+        targetChosen = false
+        freeTargetChosen = false
+        anchorRequestGeneration++
+        anchor = null
+        anchorRequested = false
+    }
+
+    /** Switch between the real geographic target and a point ahead of the camera. */
+    fun setPlacementMode(free: Boolean) {
+        if (freePlacementMode == free) return
+        freePlacementMode = free
+        targetChosen = false
+        freeTargetChosen = false
+        anchorRequestGeneration++
+        anchor = null
+        anchorRequested = false
+    }
+
+    /** Set the persisted free-placement distance, in metres. */
+    fun setFreePlacementDistance(meters: Int) {
+        val next = meters.coerceIn(2, 50)
+        if (freePlacementDistanceMeters == next) return
+        freePlacementDistanceMeters = next
+        if (freePlacementMode) {
+            freeTargetChosen = false
+            anchorRequestGeneration++
             anchor = null
             anchorRequested = false
         }
     }
 
+    private fun destinationPoint(latitude: Double, longitude: Double, bearingDegrees: Double, distanceMeters: Double): Pair<Double, Double> {
+        val radius = 6371000.0
+        val angularDistance = distanceMeters / radius
+        val bearing = Math.toRadians(bearingDegrees)
+        val lat1 = Math.toRadians(latitude)
+        val lon1 = Math.toRadians(longitude)
+        val lat2 = kotlin.math.asin(
+            kotlin.math.sin(lat1) * kotlin.math.cos(angularDistance) +
+                kotlin.math.cos(lat1) * kotlin.math.sin(angularDistance) * kotlin.math.cos(bearing)
+        )
+        val lon2 = lon1 + kotlin.math.atan2(
+            kotlin.math.sin(bearing) * kotlin.math.sin(angularDistance) * kotlin.math.cos(lat1),
+            kotlin.math.cos(angularDistance) - kotlin.math.sin(lat1) * kotlin.math.sin(lat2)
+        )
+        val normalizedLongitude = (Math.toDegrees(lon2) + 540.0) % 360.0 - 180.0
+        return Math.toDegrees(lat2) to normalizedLongitude
+    }
+
+    private fun distanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val earthRadius = 6371000.0
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = kotlin.math.sin(dLat / 2.0) * kotlin.math.sin(dLat / 2.0) +
+            kotlin.math.cos(Math.toRadians(lat1)) * kotlin.math.cos(Math.toRadians(lat2)) *
+            kotlin.math.sin(dLon / 2.0) * kotlin.math.sin(dLon / 2.0)
+        return 2.0 * earthRadius * kotlin.math.asin(kotlin.math.sqrt(a.coerceIn(0.0, 1.0)))
+    }
+
     override fun onSurfaceChanged(gl: GL10?, w: Int, h: Int) {
         width = w; height = h
+        if (standaloneMode) standaloneFitReady = false
         GLES20.glViewport(0,0,w,h)
         geometryChanged = true
     }
@@ -219,24 +297,61 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                 return
             }
             val pose = earth.cameraGeospatialPose
-            if (pose.horizontalAccuracy > 10.0 || pose.headingAccuracy > 15.0) {
-                report("Wacht op nauwkeurige locatie. GPS-afwijking: ${pose.horizontalAccuracy.toInt()} m.")
+            // Accuracy is a gate only while selecting the initial anchor. Once selected,
+            // short GPS accuracy fluctuations must not make the model disappear.
+            val needsInitialFix = if (freePlacementMode) !freeTargetChosen else !targetChosen
+            if (needsInitialFix && (pose.horizontalAccuracy > 10.0 || pose.headingAccuracy > 15.0)) {
+                report("Wacht op nauwkeurige locatie en kompasrichting. GPS-afwijking: ${pose.horizontalAccuracy.toInt()} m.")
                 return
+            }
+            if (freePlacementMode) {
+                if (!freeTargetChosen) {
+                    val point = destinationPoint(
+                        pose.latitude, pose.longitude, pose.heading, freePlacementDistanceMeters.toDouble()
+                    )
+                    targetLatitude = point.first
+                    targetLongitude = point.second
+                    freeTargetChosen = true
+                    report("Vrije locatie op ${freePlacementDistanceMeters} m vóór je gekozen; model wordt geplaatst…")
+                }
+            } else if (!targetChosen) {
+                val objectDistance = distanceMeters(pose.latitude, pose.longitude, objectLatitude, objectLongitude)
+                val testDistance = if (hasTestTarget) {
+                    distanceMeters(pose.latitude, pose.longitude, testLatitude, testLongitude)
+                } else Double.POSITIVE_INFINITY
+                val useTestLocation = testDistance < objectDistance
+                targetLatitude = if (useTestLocation) testLatitude else objectLatitude
+                targetLongitude = if (useTestLocation) testLongitude else objectLongitude
+                targetChosen = true
+                report(if (useTestLocation) {
+                    "Testlocatie is het dichtstbij; 3D-model wordt daar geplaatst…"
+                } else {
+                    "Objectlocatie is het dichtstbij; 3D-model wordt daar geplaatst…"
+                })
             }
             if (!anchorRequested && anchor == null) {
                 anchorRequested = true
-                report("Locatie gevonden. Het 3D-model wordt op de bouwlocatie geplaatst…")
-                // GLB origin: courtyard centre at the coordinates supplied by the selected photo.
-                // Axes in the delivered model are +X east, +Y up and -Z true north.
-                // ARCore Geospatial uses east/up/south, so identity rotation aligns the axes;
-                // the building's 4.4-degree orientation is already present in the model geometry.
+                val requestGeneration = anchorRequestGeneration
+                report(if (freePlacementMode) {
+                    "Vrije locatie gevonden. Het 3D-model wordt op de gekozen afstand geplaatst…"
+                } else {
+                    "Locatie gevonden. Het 3D-model wordt op de gekozen locatie geplaatst…"
+                })
+                // Model axes are +X east, +Y up and -Z true north. Identity rotation
+                // preserves the built-in 4.4-degree building orientation.
                 earth.resolveAnchorOnTerrainAsync(
                     targetLatitude, targetLongitude, 0.0,
                     0f, 0f, 0f, 1f
                 ) { resolved, state ->
-                    if (state == Anchor.TerrainAnchorState.SUCCESS && resolved != null) {
+                    if (requestGeneration != anchorRequestGeneration) {
+                        resolved?.detach()
+                    } else if (state == Anchor.TerrainAnchorState.SUCCESS && resolved != null) {
                         anchor = resolved
-                        report("3D-model geplaatst; schaal en oriëntatie moeten ter plaatse worden gecontroleerd.")
+                        report(if (freePlacementMode) {
+                            "3D-model vrij geplaatst op ${freePlacementDistanceMeters} m."
+                        } else {
+                            "3D-model geplaatst; schaal en oriëntatie moeten ter plaatse worden gecontroleerd."
+                        })
                     } else {
                         anchorRequested = false
                         report("Plaatsen van het 3D-model is mislukt: $state")
@@ -285,7 +400,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                 }
             }
             val extent = maxOf(maxX - minX, maxY - minY, maxZ - minZ).coerceAtLeast(0.001f)
-            val scale = 2.8f / extent
+            val scale = (2.8f * standaloneModelScaleMultiplier.coerceIn(1f, 2f)) / extent
             Matrix.setIdentityM(standaloneModel, 0)
             Matrix.scaleM(standaloneModel, 0, scale, scale, scale)
             // 50% on all axes keeps the original bounding-box centre as pivot.
@@ -294,9 +409,55 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             val pivotZ = minZ + (maxZ - minZ) * (standalonePivotZPercent / 100f)
             Matrix.translateM(standaloneModel, 0, -pivotX, -pivotY, -pivotZ)
             standaloneTransformReady = true
+            standaloneFitReady = false
             report("3D-model geladen — vrij bekijken")
         }
         val aspect = width.toFloat() / height.coerceAtLeast(1).toFloat()
+        if (!standaloneFitReady && width > 0 && height > 0) {
+            // Recalculate bounds in this scope; the initial transform's bounds are local
+            // to its setup block and must not be referenced here.
+            var fitMinX = Float.POSITIVE_INFINITY; var fitMinY = Float.POSITIVE_INFINITY; var fitMinZ = Float.POSITIVE_INFINITY
+            var fitMaxX = Float.NEGATIVE_INFINITY; var fitMaxY = Float.NEGATIVE_INFINITY; var fitMaxZ = Float.NEGATIVE_INFINITY
+            for (part in parts) {
+                val vertices = part.vertices
+                var i = 0
+                while (i + 2 < vertices.limit()) {
+                    val x = vertices.get(i); val y = vertices.get(i + 1); val z = vertices.get(i + 2)
+                    fitMinX = minOf(fitMinX, x); fitMinY = minOf(fitMinY, y); fitMinZ = minOf(fitMinZ, z)
+                    fitMaxX = maxOf(fitMaxX, x); fitMaxY = maxOf(fitMaxY, y); fitMaxZ = maxOf(fitMaxZ, z)
+                    i += 3
+                }
+            }
+            // Use exactly the same model scale and pivot as the rendered preview.
+            val fitExtent = maxOf(fitMaxX - fitMinX, fitMaxY - fitMinY, fitMaxZ - fitMinZ).coerceAtLeast(0.001f)
+            val scale = (2.8f * standaloneModelScaleMultiplier.coerceIn(1f, 2f)) / fitExtent
+            val pivotX = fitMinX + (fitMaxX - fitMinX) * (standalonePivotXPercent / 100f)
+            val pivotY = fitMinY + (fitMaxY - fitMinY) * (standalonePivotYPercent / 100f)
+            val pivotZ = fitMinZ + (fitMaxZ - fitMinZ) * (standalonePivotZPercent / 100f)
+            val pitch = Math.toRadians(standaloneRotationX.toDouble())
+            val cp = kotlin.math.cos(pitch).toFloat()
+            val sp = kotlin.math.sin(pitch).toFloat()
+            var halfWidth = 0f
+            var halfHeight = 0f
+            var maxDepth = 0f
+            for (x in floatArrayOf(fitMinX, fitMaxX)) for (y in floatArrayOf(fitMinY, fitMaxY)) for (z in floatArrayOf(fitMinZ, fitMaxZ)) {
+                val px = (x - pivotX) * scale
+                val py = (y - pivotY) * scale
+                val pz = (z - pivotZ) * scale
+                val rotatedY = py * cp - pz * sp
+                val rotatedZ = py * sp + pz * cp
+                halfWidth = maxOf(halfWidth, kotlin.math.abs(px))
+                halfHeight = maxOf(halfHeight, kotlin.math.abs(rotatedY))
+                maxDepth = maxOf(maxDepth, rotatedZ)
+            }
+            val verticalTan = kotlin.math.tan(Math.toRadians(22.5)).toFloat()
+            val horizontalTan = (verticalTan * aspect.coerceAtLeast(0.1f)).coerceAtLeast(0.01f)
+            val fitDistance = maxOf(halfWidth / horizontalTan, halfHeight / verticalTan) / 0.92f +
+                maxDepth.coerceAtLeast(0f)
+            standaloneAutoFitDistance = fitDistance.coerceIn(0.65f, 24f)
+            standaloneCameraDistance = standaloneAutoFitDistance
+            standaloneFitReady = true
+        }
         Matrix.perspectiveM(projection, 0, 45f, aspect.coerceAtLeast(0.1f), 0.1f, 100f)
         val yaw = Math.toRadians(standaloneRotationY.toDouble())
         val pitch = Math.toRadians(standaloneRotationX.toDouble())
@@ -399,8 +560,12 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         loadStarted = true
         Thread {
             try {
-                report("Lokaal 3D-modelbestand wordt geladen…")
-                val bytes = context.assets.open("ommerschans.glb").use { it.readBytes() }
+                report(if (modelUrl.isNullOrBlank()) "Lokaal 3D-modelbestand wordt geladen…" else "3D-model wordt opgehaald…")
+                val bytes = if (!modelUrl.isNullOrBlank()) {
+                    val connection = java.net.URL(modelUrl).openConnection().apply { connectTimeout = 12000; readTimeout = 30000 }
+                    connection.getInputStream().use { it.readBytes() }
+                } else context.assets.open(modelAsset).use { it.readBytes() }
+                require(bytes.size <= 80 * 1024 * 1024) { "3D-model is groter dan 80 MB" }
                 val parsed = parseGlb(bytes)
                 modelData = parsed
                 report("3D-model geladen: ${parsed.size} onderdelen")
