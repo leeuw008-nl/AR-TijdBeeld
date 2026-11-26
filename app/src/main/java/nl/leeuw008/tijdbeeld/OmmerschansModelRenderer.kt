@@ -188,7 +188,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         objectLatitude = objectLat
         objectLongitude = objectLng
         hasTestTarget = testLat.isFinite() && testLng.isFinite() &&
-            testLat in -90.0..90.0 && testLng in -180.0..90.0
+            testLat in -90.0..90.0 && testLng in -180.0..180.0
         testLatitude = testLat
         testLongitude = testLng
         targetLatitude = objectLat
