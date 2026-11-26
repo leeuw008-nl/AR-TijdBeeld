@@ -218,8 +218,8 @@ class ModelArActivity : Activity() {
             root.addView(header, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
         }
         if (!standalonePreview) {
-            root.addView(status, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
-                topMargin = dp(116)
+            root.addView(status, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply {
+                bottomMargin = dp(28)
             })
 
             val placementSettings = getSharedPreferences("tijdbeeld_ar_settings", MODE_PRIVATE)
