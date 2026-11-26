@@ -214,18 +214,41 @@ class ModelArActivity : Activity() {
                 setOnClickListener { showGeospatialAccuracyDialog() }
             }, LinearLayout.LayoutParams(dp(48), dp(48)))
         }
-        root.addView(header, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        if (standalonePreview) {
+            root.addView(header, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        }
         if (!standalonePreview) {
             root.addView(status, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
-                topMargin = dp(64)
+                topMargin = dp(116)
             })
 
             val placementSettings = getSharedPreferences("tijdbeeld_ar_settings", MODE_PRIVATE)
-            val initialDistance = placementSettings.getInt("free_placement_distance_m", 10).coerceIn(2, 50)
+            val initialDistance = placementSettings.getInt("free_placement_distance_m", 10).coerceIn(2, 250)
             val placementPanel = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(10), dp(6), dp(10), dp(6))
                 setBackgroundColor(0xCCFFFFFF.toInt())
+                visibility = View.GONE
+                alpha = 0f
+            }
+            val hidePlacementPanel = Runnable {
+                placementPanel.animate().alpha(0f).setDuration(180).withEndAction {
+                    placementPanel.visibility = View.GONE
+                }.start()
+            }
+            fun showPlacementPanel() {
+                uiHandler.removeCallbacks(hidePlacementPanel)
+                placementPanel.visibility = View.VISIBLE
+                placementPanel.animate().alpha(1f).setDuration(120).start()
+                uiHandler.postDelayed(hidePlacementPanel, 2500L)
+            }
+            glView.setOnTouchListener { _, event ->
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) showPlacementPanel()
+                false
+            }
+            placementPanel.setOnTouchListener { _, event ->
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) showPlacementPanel()
+                false
             }
             val modeRow = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -254,7 +277,7 @@ class ModelArActivity : Activity() {
                 text = "Afstand vóór je: $initialDistance meter"
             }
             val distanceSlider = SeekBar(this).apply {
-                max = 48
+                max = 248
                 progress = initialDistance - 2
                 isEnabled = false
             }
@@ -268,8 +291,8 @@ class ModelArActivity : Activity() {
                 distanceLabel.alpha = if (free) 1f else 0.55f
                 distanceSlider.alpha = if (free) 1f else 0.55f
             }
-            testModeButton.setOnClickListener { choosePlacementMode(false) }
-            freeModeButton.setOnClickListener { choosePlacementMode(true) }
+            testModeButton.setOnClickListener { choosePlacementMode(false); showPlacementPanel() }
+            freeModeButton.setOnClickListener { choosePlacementMode(true); showPlacementPanel() }
             distanceSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     val distance = progress + 2
@@ -277,18 +300,36 @@ class ModelArActivity : Activity() {
                     renderer.setFreePlacementDistance(distance.toFloat())
                     if (fromUser) placementSettings.edit().putInt("free_placement_distance_m", distance).apply()
                 }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
-                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStartTrackingTouch(seekBar: SeekBar?) { showPlacementPanel() }
+                override fun onStopTrackingTouch(seekBar: SeekBar?) { showPlacementPanel() }
             })
+            val backButton = TextView(this).apply {
+                text = "‹"
+                textSize = 34f
+                gravity = Gravity.CENTER
+                setTextColor(0xFF1769AA.toInt())
+                contentDescription = "Terug"
+                setOnClickListener { finish() }
+            }
+            val settingsButton = TextView(this).apply {
+                text = "⚙"
+                textSize = 23f
+                gravity = Gravity.CENTER
+                setTextColor(0xFF1769AA.toInt())
+                contentDescription = "GPS- en kompasinstellingen"
+                setOnClickListener { showGeospatialAccuracyDialog() }
+            }
+            modeRow.addView(backButton, LinearLayout.LayoutParams(dp(42), dp(48)))
             modeRow.addView(testModeButton, LinearLayout.LayoutParams(0, -2, 1f).apply { rightMargin = dp(4) })
             modeRow.addView(freeModeButton, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(4) })
+            modeRow.addView(settingsButton, LinearLayout.LayoutParams(dp(42), dp(48)))
             placementPanel.addView(modeRow)
             placementPanel.addView(distanceLabel)
             placementPanel.addView(distanceSlider)
             choosePlacementMode(false)
             renderer.setFreePlacementDistance(initialDistance.toFloat())
             root.addView(placementPanel, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
-                topMargin = dp(104)
+                topMargin = dp(0)
             })
         }
 
