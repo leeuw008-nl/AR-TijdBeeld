@@ -37,6 +37,10 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     @Volatile private var testLongitude = Double.NaN
     @Volatile private var hasTestTarget = false
     @Volatile private var targetChosen = false
+    @Volatile private var freePlacementMode = false
+    @Volatile private var freePlacementDistanceMeters = 10
+    @Volatile private var freeTargetChosen = false
+    @Volatile private var anchorRequestGeneration = 0
     private var anchorRequested = false
     private var standaloneTransformReady = false
     private val standaloneModel = FloatArray(16)
@@ -184,14 +188,58 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         objectLatitude = objectLat
         objectLongitude = objectLng
         hasTestTarget = testLat.isFinite() && testLng.isFinite() &&
-            testLat in -90.0..90.0 && testLng in -180.0..180.0
+            testLat in -90.0..90.0 && testLng in -180.0..90.0
         testLatitude = testLat
         testLongitude = testLng
         targetLatitude = objectLat
         targetLongitude = objectLng
         targetChosen = false
+        freeTargetChosen = false
+        anchorRequestGeneration++
         anchor = null
         anchorRequested = false
+    }
+
+    /** Switch between the real geographic target and a point ahead of the camera. */
+    fun setPlacementMode(free: Boolean) {
+        if (freePlacementMode == free) return
+        freePlacementMode = free
+        targetChosen = false
+        freeTargetChosen = false
+        anchorRequestGeneration++
+        anchor = null
+        anchorRequested = false
+    }
+
+    /** Set the persisted free-placement distance, in metres. */
+    fun setFreePlacementDistance(meters: Int) {
+        val next = meters.coerceIn(2, 50)
+        if (freePlacementDistanceMeters == next) return
+        freePlacementDistanceMeters = next
+        if (freePlacementMode) {
+            freeTargetChosen = false
+            anchorRequestGeneration++
+            anchor = null
+            anchorRequested = false
+        }
+    }
+
+    private fun destinationPoint(latitude: Double, longitude: Double, bearingDegrees: Double, distanceMeters: Double): Pair<Double, Double> {
+        val radius = 6371000.0
+        val angularDistance = distanceMeters / radius
+        val bearing = Math.toRadians(bearingDegrees)
+        val lat1 = Math.toRadians(latitude)
+        val lon1 = Math.toRadians(longitude)
+        val lat2 = kotlin.math.asin(
+            kotlin.math.sin(lat1) * kotlin.math.cos(angularDistance) +
+                kotlin.math.cos(lat1) * kotlin.math.sin(angularDistance) * kotlin.math.cos(bearing)
+        )
+        val lon2 = lon1 + kotlin.math.atan2(
+            kotlin.math.sin(bearing) * kotlin.math.sin(angularDistance) * kotlin.math.cos(lat1),
+            kotlin.math.cos(angularDistance) - kotlin.math.sin(lat1) * kotlin.math.sin(lat2)
+        )
+        val normalizedLongitude = (Math.toDegrees(lon2) + 540.0) % 360.0 - 180.0
+        return Math.toDegrees(lat2) to normalizedLongitude
     }
 
     private fun distanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
@@ -249,11 +297,24 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                 return
             }
             val pose = earth.cameraGeospatialPose
-            if (pose.horizontalAccuracy > 10.0 || pose.headingAccuracy > 15.0) {
-                report("Wacht op nauwkeurige locatie. GPS-afwijking: ${pose.horizontalAccuracy.toInt()} m.")
+            // Accuracy is a gate only while selecting the initial anchor. Once selected,
+            // short GPS accuracy fluctuations must not make the model disappear.
+            val needsInitialFix = if (freePlacementMode) !freeTargetChosen else !targetChosen
+            if (needsInitialFix && (pose.horizontalAccuracy > 10.0 || pose.headingAccuracy > 15.0)) {
+                report("Wacht op nauwkeurige locatie en kompasrichting. GPS-afwijking: ${pose.horizontalAccuracy.toInt()} m.")
                 return
             }
-            if (!targetChosen) {
+            if (freePlacementMode) {
+                if (!freeTargetChosen) {
+                    val point = destinationPoint(
+                        pose.latitude, pose.longitude, pose.heading, freePlacementDistanceMeters.toDouble()
+                    )
+                    targetLatitude = point.first
+                    targetLongitude = point.second
+                    freeTargetChosen = true
+                    report("Vrije locatie op ${freePlacementDistanceMeters} m vóór je gekozen; model wordt geplaatst…")
+                }
+            } else if (!targetChosen) {
                 val objectDistance = distanceMeters(pose.latitude, pose.longitude, objectLatitude, objectLongitude)
                 val testDistance = if (hasTestTarget) {
                     distanceMeters(pose.latitude, pose.longitude, testLatitude, testLongitude)
@@ -270,18 +331,27 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             }
             if (!anchorRequested && anchor == null) {
                 anchorRequested = true
-                report("Locatie gevonden. Het 3D-model wordt op de gekozen locatie geplaatst…")
-                // GLB origin: courtyard centre at the coordinates supplied by the selected photo.
-                // Axes in the delivered model are +X east, +Y up and -Z true north.
-                // ARCore Geospatial uses east/up/south, so identity rotation aligns the axes;
-                // the building's 4.4-degree orientation is already present in the model geometry.
+                val requestGeneration = anchorRequestGeneration
+                report(if (freePlacementMode) {
+                    "Vrije locatie gevonden. Het 3D-model wordt op de gekozen afstand geplaatst…"
+                } else {
+                    "Locatie gevonden. Het 3D-model wordt op de gekozen locatie geplaatst…"
+                })
+                // Model axes are +X east, +Y up and -Z true north. Identity rotation
+                // preserves the built-in 4.4-degree building orientation.
                 earth.resolveAnchorOnTerrainAsync(
                     targetLatitude, targetLongitude, 0.0,
                     0f, 0f, 0f, 1f
                 ) { resolved, state ->
-                    if (state == Anchor.TerrainAnchorState.SUCCESS && resolved != null) {
+                    if (requestGeneration != anchorRequestGeneration) {
+                        resolved?.detach()
+                    } else if (state == Anchor.TerrainAnchorState.SUCCESS && resolved != null) {
                         anchor = resolved
-                        report("3D-model geplaatst; schaal en oriëntatie moeten ter plaatse worden gecontroleerd.")
+                        report(if (freePlacementMode) {
+                            "3D-model vrij geplaatst op ${freePlacementDistanceMeters} m."
+                        } else {
+                            "3D-model geplaatst; schaal en oriëntatie moeten ter plaatse worden gecontroleerd."
+                        })
                     } else {
                         anchorRequested = false
                         report("Plaatsen van het 3D-model is mislukt: $state")
