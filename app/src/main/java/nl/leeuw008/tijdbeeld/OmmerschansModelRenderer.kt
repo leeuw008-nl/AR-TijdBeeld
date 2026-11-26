@@ -46,6 +46,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     private var anchorRequested = false
     private var standaloneTransformReady = false
     private val standaloneModel = FloatArray(16)
+    private val modelOrientation180 = FloatArray(16)
     private val standaloneRotation = FloatArray(16)
     private val standaloneRotatedModel = FloatArray(16)
     private val standaloneTranslation = FloatArray(16)
@@ -126,6 +127,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         GLES20.glClearColor(0f,0f,0f,1f)
+        Matrix.setRotateM(modelOrientation180, 0, 180f, 0f, 1f, 0f)
         cameraProgram = program(CAMERA_VS, CAMERA_FS)
         cameraPos = GLES20.glGetAttribLocation(cameraProgram, "aPos")
         cameraUv = GLES20.glGetAttribLocation(cameraProgram, "aUv")
@@ -296,8 +298,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                         return
                     }
                     val cameraYaw = kotlin.math.atan2(-forward[0], -forward[2])
-                    // Draai het gebouw 180° zodat de dakkapelzijde de voorzijde is.
-                    val northAlignedYaw = cameraYaw - Math.toRadians(geoPose.heading) + Math.PI
+                    val northAlignedYaw = cameraYaw - Math.toRadians(geoPose.heading)
                     val halfYaw = (northAlignedYaw / 2.0).toFloat()
                     val rotation = floatArrayOf(0f, kotlin.math.sin(halfYaw), 0f, kotlin.math.cos(halfYaw))
                     val cameraPosition = cameraPose.translation
@@ -315,7 +316,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                     frame.camera.getViewMatrix(view, 0)
                     frame.camera.getProjectionMatrix(projection, 0, 0.1f, 1000f)
                     free.pose.toMatrix(model, 0)
-                    Matrix.multiplyMM(mv, 0, view, 0, model, 0)
+                    Matrix.multiplyMM(standaloneRotatedModel, 0, model, 0, modelOrientation180, 0)
+                    Matrix.multiplyMM(mv, 0, view, 0, standaloneRotatedModel, 0)
                     Matrix.multiplyMM(mvp, 0, projection, 0, mv, 0)
                     GLES20.glEnable(GLES20.GL_DEPTH_TEST)
                     GLES20.glEnable(GLES20.GL_CULL_FACE)
@@ -358,13 +360,11 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             if (!anchorRequested && anchor == null) {
                 anchorRequested = true
                 report("Locatie gevonden. Het 3D-model wordt op de gekozen locatie geplaatst…")
-                // GLB origin: courtyard centre at the coordinates supplied by the selected photo.
-                // Axes in the delivered model are +X east, +Y up and -Z true north.
-                // ARCore Geospatial uses east/up/south, so identity rotation aligns the axes;
-                // the building's 4.4-degree orientation is already present in the model geometry.
+                // The model's 180-degree front/back correction is applied uniformly
+                // to the model transform below, not to the geospatial anchor.
                 earth.resolveAnchorOnTerrainAsync(
                     targetLatitude, targetLongitude, 0.0,
-                    0f, 1f, 0f, 0f
+                    0f, 0f, 0f, 1f
                 ) { resolved, state ->
                     if (state == Anchor.TerrainAnchorState.SUCCESS && resolved != null) {
                         anchor = resolved
@@ -380,7 +380,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             frame.camera.getViewMatrix(view,0)
             frame.camera.getProjectionMatrix(projection,0,0.1f,1000f)
             a.pose.toMatrix(model,0)
-            Matrix.multiplyMM(mv,0,view,0,model,0)
+            Matrix.multiplyMM(standaloneRotatedModel,0,model,0,modelOrientation180,0)
+            Matrix.multiplyMM(mv,0,view,0,standaloneRotatedModel,0)
             Matrix.multiplyMM(mvp,0,projection,0,mv,0)
             GLES20.glEnable(GLES20.GL_DEPTH_TEST)
             GLES20.glEnable(GLES20.GL_CULL_FACE)
@@ -484,7 +485,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         Matrix.setLookAtM(view, 0, eyeX, eyeY, eyeZ, 0f, 0f, 0f, 0f, 1f, 0f)
         Matrix.setIdentityM(standaloneTranslation, 0)
         Matrix.translateM(standaloneTranslation, 0, standaloneOffsetX, standaloneOffsetY, 0f)
-        Matrix.multiplyMM(standaloneRotatedModel, 0, standaloneTranslation, 0, standaloneModel, 0)
+        Matrix.multiplyMM(model, 0, modelOrientation180, 0, standaloneModel, 0)
+        Matrix.multiplyMM(standaloneRotatedModel, 0, standaloneTranslation, 0, model, 0)
         Matrix.multiplyMM(mv, 0, view, 0, standaloneRotatedModel, 0)
         Matrix.multiplyMM(mvp, 0, projection, 0, mv, 0)
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
