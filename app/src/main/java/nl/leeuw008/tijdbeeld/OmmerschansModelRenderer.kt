@@ -103,7 +103,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
 
     fun setFreePlacementDistance(distanceMeters: Float) {
         if (!distanceMeters.isFinite()) return
-        val next = distanceMeters.coerceIn(2f, 50f)
+        val next = distanceMeters.coerceIn(2f, 250f)
         if (kotlin.math.abs(next - freePlacementDistanceMeters) < 0.01f) return
         freePlacementDistanceMeters = next
         if (freePlacementMode) {
