@@ -214,14 +214,16 @@ class ModelArActivity : Activity() {
                 setOnClickListener { showGeospatialAccuracyDialog() }
             }, LinearLayout.LayoutParams(dp(48), dp(48)))
         }
-        root.addView(header, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        if (standalonePreview) {
+            root.addView(header, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        }
         if (!standalonePreview) {
             root.addView(status, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
-                topMargin = dp(64)
+                topMargin = dp(116)
             })
 
             val placementSettings = getSharedPreferences("tijdbeeld_ar_settings", MODE_PRIVATE)
-            val initialDistance = placementSettings.getInt("free_placement_distance_m", 10).coerceIn(2, 50)
+            val initialDistance = placementSettings.getInt("free_placement_distance_m", 10).coerceIn(2, 250)
             val placementPanel = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(10), dp(6), dp(10), dp(6))
@@ -254,7 +256,7 @@ class ModelArActivity : Activity() {
                 text = "Afstand vóór je: $initialDistance meter"
             }
             val distanceSlider = SeekBar(this).apply {
-                max = 48
+                max = 248
                 progress = initialDistance - 2
                 isEnabled = false
             }
@@ -280,15 +282,33 @@ class ModelArActivity : Activity() {
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
                 override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
             })
+            val backButton = TextView(this).apply {
+                text = "‹"
+                textSize = 34f
+                gravity = Gravity.CENTER
+                setTextColor(0xFF1769AA.toInt())
+                contentDescription = "Terug"
+                setOnClickListener { finish() }
+            }
+            val settingsButton = TextView(this).apply {
+                text = "⚙"
+                textSize = 23f
+                gravity = Gravity.CENTER
+                setTextColor(0xFF1769AA.toInt())
+                contentDescription = "GPS- en kompasinstellingen"
+                setOnClickListener { showGeospatialAccuracyDialog() }
+            }
+            modeRow.addView(backButton, LinearLayout.LayoutParams(dp(42), dp(48)))
             modeRow.addView(testModeButton, LinearLayout.LayoutParams(0, -2, 1f).apply { rightMargin = dp(4) })
             modeRow.addView(freeModeButton, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(4) })
+            modeRow.addView(settingsButton, LinearLayout.LayoutParams(dp(42), dp(48)))
             placementPanel.addView(modeRow)
             placementPanel.addView(distanceLabel)
             placementPanel.addView(distanceSlider)
             choosePlacementMode(false)
             renderer.setFreePlacementDistance(initialDistance.toFloat())
             root.addView(placementPanel, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
-                topMargin = dp(104)
+                topMargin = dp(0)
             })
         }
 
