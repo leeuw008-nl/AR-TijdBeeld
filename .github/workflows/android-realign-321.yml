@@ -1,0 +1,83 @@
+name: Re-align original AR-TijdBeeld #321 APK
+
+on:
+  push:
+    branches: [test/installatiecheck-vanaf-317]
+    paths:
+      - .github/workflows/android-realign-321.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  realign:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build tools
+        run: sdkmanager "build-tools;35.0.0"
+
+      - name: Restore the exact signing key used by #317 and #321
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: tijdbeeld-diagnostic-signing-key-v2
+
+      - name: Verify signing key
+        run: |
+          set -euo pipefail
+          test -s ~/.android/debug.keystore || { echo "::error::The original signing key cache was not found; refusing to sign with a different key."; exit 1; }
+          ACTUAL_SHA1="$(keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey | awk -F': ' '/SHA1:/{gsub(":","",$2); print tolower($2); exit}')"
+          EXPECTED_SHA1="3ab19be147dc97b092b3f57b146bb514992efb9e"
+          echo "Restored certificate SHA-1: $ACTUAL_SHA1"
+          test "$ACTUAL_SHA1" = "$EXPECTED_SHA1" || { echo "::error::Signing key does not match #317/#321."; exit 1; }
+
+      - name: Download the original #321 GitHub Actions artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p original
+          gh run download 45867802104 --repo leeuw008-nl/AR-TijdBeeld --name AR-TijdBeeld --dir original
+          test -s original/AR-TijdBeeld.apk
+
+      - name: Re-align and re-sign the original #321 APK
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.0"
+          "$BUILD_TOOLS/zipalign" -p -f 4 original/AR-TijdBeeld.apk AR-TijdBeeld-321-aligned.apk
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks ~/.android/debug.keystore \
+            --ks-key-alias androiddebugkey \
+            --ks-pass pass:android \
+            --key-pass pass:android \
+            --v1-signing-enabled false \
+            --v2-signing-enabled true \
+            --v3-signing-enabled false \
+            --v4-signing-enabled false \
+            --out dist-AR-TijdBeeld-321-fixed.apk \
+            AR-TijdBeeld-321-aligned.apk
+          "$BUILD_TOOLS/zipalign" -c -v 4 dist-AR-TijdBeeld-321-fixed.apk
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs dist-AR-TijdBeeld-321-fixed.apk
+          "$BUILD_TOOLS/aapt" dump badging dist-AR-TijdBeeld-321-fixed.apk | grep "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='5'"
+          mkdir -p dist
+          mv dist-AR-TijdBeeld-321-fixed.apk dist/AR-TijdBeeld-321-fixed.apk
+
+      - name: Upload fixed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AR-TijdBeeld-321-fixed
+          path: dist/AR-TijdBeeld-321-fixed.apk
+          if-no-files-found: error
+          retention-days: 31
