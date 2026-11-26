@@ -219,6 +219,77 @@ class ModelArActivity : Activity() {
             root.addView(status, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
                 topMargin = dp(64)
             })
+
+            val placementSettings = getSharedPreferences("tijdbeeld_ar_settings", MODE_PRIVATE)
+            val initialDistance = placementSettings.getInt("free_placement_distance_m", 10).coerceIn(2, 50)
+            val placementPanel = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(10), dp(6), dp(10), dp(6))
+                setBackgroundColor(0xCCFFFFFF.toInt())
+            }
+            val modeRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+            }
+            val testModeButton = TextView(this).apply {
+                text = "Test locatie"
+                textSize = 15f
+                gravity = Gravity.CENTER
+                setPadding(dp(14), dp(9), dp(14), dp(9))
+                setTextColor(0xFFFFFFFF.toInt())
+                isClickable = true
+            }
+            val freeModeButton = TextView(this).apply {
+                text = "Vrije locatie"
+                textSize = 15f
+                gravity = Gravity.CENTER
+                setPadding(dp(14), dp(9), dp(14), dp(9))
+                setTextColor(0xFF1769AA.toInt())
+                isClickable = true
+            }
+            val distanceLabel = TextView(this).apply {
+                textSize = 14f
+                setTextColor(0xFF243746.toInt())
+                gravity = Gravity.CENTER
+                text = "Afstand vóór je: $initialDistance meter"
+            }
+            val distanceSlider = SeekBar(this).apply {
+                max = 48
+                progress = initialDistance - 2
+                isEnabled = false
+            }
+            fun choosePlacementMode(free: Boolean) {
+                renderer.setFreePlacementMode(free)
+                testModeButton.setBackgroundColor(if (free) 0xFFE5EEF5.toInt() else 0xFF1769AA.toInt())
+                freeModeButton.setBackgroundColor(if (free) 0xFF1769AA.toInt() else 0xFFE5EEF5.toInt())
+                testModeButton.setTextColor(if (free) 0xFF1769AA.toInt() else 0xFFFFFFFF.toInt())
+                freeModeButton.setTextColor(if (free) 0xFFFFFFFF.toInt() else 0xFF1769AA.toInt())
+                distanceSlider.isEnabled = free
+                distanceLabel.alpha = if (free) 1f else 0.55f
+                distanceSlider.alpha = if (free) 1f else 0.55f
+            }
+            testModeButton.setOnClickListener { choosePlacementMode(false) }
+            freeModeButton.setOnClickListener { choosePlacementMode(true) }
+            distanceSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val distance = progress + 2
+                    distanceLabel.text = "Afstand vóór je: $distance meter"
+                    renderer.setFreePlacementDistance(distance.toFloat())
+                    if (fromUser) placementSettings.edit().putInt("free_placement_distance_m", distance).apply()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+            modeRow.addView(testModeButton, LinearLayout.LayoutParams(0, -2, 1f).apply { rightMargin = dp(4) })
+            modeRow.addView(freeModeButton, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(4) })
+            placementPanel.addView(modeRow)
+            placementPanel.addView(distanceLabel)
+            placementPanel.addView(distanceSlider)
+            choosePlacementMode(false)
+            renderer.setFreePlacementDistance(initialDistance.toFloat())
+            root.addView(placementPanel, FrameLayout.LayoutParams(-1, -2, Gravity.TOP).apply {
+                topMargin = dp(104)
+            })
         }
 
         if (standalonePreview) {
