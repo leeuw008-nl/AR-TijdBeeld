@@ -296,7 +296,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                         return
                     }
                     val cameraYaw = kotlin.math.atan2(-forward[0], -forward[2])
-                    val northAlignedYaw = cameraYaw - Math.toRadians(geoPose.heading)
+                    // Draai het gebouw 180° zodat de dakkapelzijde de voorzijde is.
+                    val northAlignedYaw = cameraYaw - Math.toRadians(geoPose.heading) + Math.PI
                     val halfYaw = (northAlignedYaw / 2.0).toFloat()
                     val rotation = floatArrayOf(0f, kotlin.math.sin(halfYaw), 0f, kotlin.math.cos(halfYaw))
                     val cameraPosition = cameraPose.translation
@@ -363,7 +364,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                 // the building's 4.4-degree orientation is already present in the model geometry.
                 earth.resolveAnchorOnTerrainAsync(
                     targetLatitude, targetLongitude, 0.0,
-                    0f, 0f, 0f, 1f
+                    0f, 1f, 0f, 0f
                 ) { resolved, state ->
                     if (state == Anchor.TerrainAnchorState.SUCCESS && resolved != null) {
                         anchor = resolved
