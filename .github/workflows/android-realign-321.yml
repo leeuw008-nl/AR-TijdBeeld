@@ -1,10 +1,8 @@
 name: Re-align original AR-TijdBeeld #321 APK
 
 on:
-  push:
-    branches: [test/installatiecheck-vanaf-317]
-    paths:
-      - .github/workflows/android-realign-321.yml
+  pull_request:
+    branches: [release/werkende-versie-alle-6-punten]
   workflow_dispatch:
 
 permissions:
