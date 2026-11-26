@@ -228,6 +228,27 @@ class ModelArActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(10), dp(6), dp(10), dp(6))
                 setBackgroundColor(0xCCFFFFFF.toInt())
+                visibility = View.GONE
+                alpha = 0f
+            }
+            val hidePlacementPanel = Runnable {
+                placementPanel.animate().alpha(0f).setDuration(180).withEndAction {
+                    placementPanel.visibility = View.GONE
+                }.start()
+            }
+            fun showPlacementPanel() {
+                uiHandler.removeCallbacks(hidePlacementPanel)
+                placementPanel.visibility = View.VISIBLE
+                placementPanel.animate().alpha(1f).setDuration(120).start()
+                uiHandler.postDelayed(hidePlacementPanel, 2500L)
+            }
+            glView.setOnTouchListener { _, event ->
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) showPlacementPanel()
+                false
+            }
+            placementPanel.setOnTouchListener { _, event ->
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) showPlacementPanel()
+                false
             }
             val modeRow = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -270,8 +291,8 @@ class ModelArActivity : Activity() {
                 distanceLabel.alpha = if (free) 1f else 0.55f
                 distanceSlider.alpha = if (free) 1f else 0.55f
             }
-            testModeButton.setOnClickListener { choosePlacementMode(false) }
-            freeModeButton.setOnClickListener { choosePlacementMode(true) }
+            testModeButton.setOnClickListener { choosePlacementMode(false); showPlacementPanel() }
+            freeModeButton.setOnClickListener { choosePlacementMode(true); showPlacementPanel() }
             distanceSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     val distance = progress + 2
@@ -279,8 +300,8 @@ class ModelArActivity : Activity() {
                     renderer.setFreePlacementDistance(distance.toFloat())
                     if (fromUser) placementSettings.edit().putInt("free_placement_distance_m", distance).apply()
                 }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
-                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStartTrackingTouch(seekBar: SeekBar?) { showPlacementPanel() }
+                override fun onStopTrackingTouch(seekBar: SeekBar?) { showPlacementPanel() }
             })
             val backButton = TextView(this).apply {
                 text = "‹"
