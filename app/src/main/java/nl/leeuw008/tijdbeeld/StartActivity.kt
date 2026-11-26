@@ -156,11 +156,11 @@ class StartActivity : Activity() {
         })
 
         val photoCard = card()
-        photoCard.addView(sectionTitle("1. Foto-overzicht"))
+        photoCard.addView(sectionTitle("1. Object-overzicht"))
         featuredImage = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             setBackgroundColor(Color.rgb(224, 231, 237))
-            contentDescription = "Geselecteerde historische foto"
+            contentDescription = "Geselecteerd object"
         }
         photoCard.addView(featuredImage, LinearLayout.LayoutParams(-1, dp(170)))
         featuredTitle = TextView(this).apply {
@@ -225,15 +225,15 @@ class StartActivity : Activity() {
             // publiceren mogelijk is: eerst veilig aanmelden bij de centrale catalogus.
             if (adminSessionActive) {
                 val beheerMenu = menu.addSubMenu("Beheer")
-                beheerMenu.add("Foto toevoegen").setOnMenuItemClickListener {
+                beheerMenu.add("Object toevoegen").setOnMenuItemClickListener {
                     openAdminSection("add", false)
                     true
                 }
-                beheerMenu.add("Foto wijzigen").setOnMenuItemClickListener {
+                beheerMenu.add("Object wijzigen").setOnMenuItemClickListener {
                     openAdminSection("edit", false)
                     true
                 }
-                beheerMenu.add("Foto startpagina").setOnMenuItemClickListener {
+                beheerMenu.add("Startpagina-object").setOnMenuItemClickListener {
                     openAdminSection("home", false)
                     true
                 }
