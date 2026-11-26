@@ -108,7 +108,7 @@ jobs:
           fi
           "$APKSIGNER" verify --verbose --print-certs dist/AR-TijdBeeld.apk
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
-          "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='4'|application-label:'AR-TijdBeeld'"
+          "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.installtest323' versionCode='1'|application-label:'AR-TijdBeeld test'"
 
       - name: Upload AR-TijdBeeld APK
         uses: actions/upload-artifact@v4
