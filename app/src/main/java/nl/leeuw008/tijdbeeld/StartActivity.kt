@@ -382,7 +382,10 @@ class StartActivity : Activity() {
                                 item.optString("title"),
                                 item.optString("imageUrl"),
                                 item.optDouble("objectLat"),
-                                item.optDouble("objectLng")
+                                item.optDouble("objectLng"),
+                                item.optDouble("photoObjectLat", item.optDouble("objectLat")),
+                                item.optDouble("photoObjectLng", item.optDouble("objectLng")),
+                                item.optString("objectType", "PHOTO")
                             )
                             loaded.removeAll { it.id == localFeaturedId }
                             loaded.add(localPhoto)
