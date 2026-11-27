@@ -132,12 +132,12 @@ class StartActivity : Activity() {
         }, LinearLayout.LayoutParams(0, -2, 1f))
         header.addView(TextView(this).apply {
             val installedVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: "onbekend"
-            text = "v$installedVersion"
+            text = "v$installedVersion · #${BuildConfig.BUILD_NUMBER}"
             textSize = 13f
             setTextColor(Color.WHITE)
             alpha = 0.9f
             gravity = Gravity.CENTER_VERTICAL or Gravity.END
-            contentDescription = "App-versie $installedVersion"
+            contentDescription = "App-versie $installedVersion, build ${BuildConfig.BUILD_NUMBER}"
         }, LinearLayout.LayoutParams(-2, -2))
 
         root.addView(header)
