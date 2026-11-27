@@ -915,10 +915,7 @@ class AdminActivity : Activity() {
         if (!item.imageUrl.startsWith("https://")) return "de URL van de bijbehorende foto ontbreekt of is ongeldig"
 
         if (item.objectType == "MODEL") {
-            if (!item.modelUrl.trim().startsWith("https://", ignoreCase = true) ||
-                !item.modelUrl.trim().substringBefore('?').endsWith(".glb", ignoreCase = true)) {
-                return "de HTTPS-URL van het GLB-bestand ontbreekt of is ongeldig"
-            }
+            if (!hasModelSource(item)) return "het GLB-bestand of lokale 3D-model ontbreekt"
             if (item.displayLocation !in setOf("OBJECT", "TEST")) return "de weergavelocatie is ongeldig"
             if (item.displayLocation == "TEST" && !validCoordinates(item.testLat, item.testLng)) {
                 return "de GPS-positie van de 3D-model-testlocatie ontbreekt of is ongeldig"
@@ -935,9 +932,8 @@ class AdminActivity : Activity() {
         persistCurrentForm()
         val item = photos.getOrNull(selected) ?: return false
         if (item.objectType == "MODEL") {
-            if (!item.modelUrl.trim().startsWith("https://", ignoreCase = true) ||
-                !item.modelUrl.trim().substringBefore('?').endsWith(".glb", ignoreCase = true)) {
-                Toast.makeText(this, "Vul eerst een geldige HTTPS-URL van een GLB-bestand in.", Toast.LENGTH_LONG).show()
+            if (!hasModelSource(item)) {
+                Toast.makeText(this, "Er is geen GLB-bestand of lokaal 3D-model beschikbaar.", Toast.LENGTH_LONG).show()
                 return false
             }
             if (item.imageUrl.isBlank()) {
@@ -1256,9 +1252,8 @@ class AdminActivity : Activity() {
         val p = photos[selected]
         persistCurrentForm()
         if (p.objectType == "MODEL") {
-            if (!p.modelUrl.trim().startsWith("https://", ignoreCase = true) ||
-                !p.modelUrl.trim().substringBefore('?').endsWith(".glb", ignoreCase = true)) {
-                Toast.makeText(this, "Vul eerst een geldige HTTPS-URL van het GLB-model in.", Toast.LENGTH_LONG).show()
+            if (!hasModelSource(p)) {
+                Toast.makeText(this, "Er is geen GLB-bestand of lokaal 3D-model beschikbaar.", Toast.LENGTH_LONG).show()
                 return
             }
             if (p.imageUrl.isBlank()) { Toast.makeText(this, "Vul ook de URL van de bijbehorende foto in. Deze is verplicht bij een 3D-model.", Toast.LENGTH_LONG).show(); return }
@@ -1515,10 +1510,8 @@ class AdminActivity : Activity() {
         if (mapScreenActive) return
         if (adminScreenView == null) return
         val selectedItem = photos.getOrNull(selected)
-        if (selectedItem?.objectType == "MODEL" &&
-            (!selectedItem.modelUrl.trim().startsWith("https://", ignoreCase = true) ||
-                !selectedItem.modelUrl.trim().substringBefore('?').endsWith(".glb", ignoreCase = true))) {
-            Toast.makeText(this, "Vul eerst een geldige HTTPS-URL van het GLB-bestand in.", Toast.LENGTH_LONG).show()
+        if (selectedItem?.objectType == "MODEL" && !hasModelSource(selectedItem)) {
+            Toast.makeText(this, "Er is geen GLB-bestand of lokaal 3D-model beschikbaar.", Toast.LENGTH_LONG).show()
             return
         }
         mapScreenActive = true
