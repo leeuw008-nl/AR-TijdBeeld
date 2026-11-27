@@ -33,7 +33,7 @@ private class OutlinedStatusTextView(context: android.content.Context) : TextVie
         val originalColor = paint.color
         paint.style = android.graphics.Paint.Style.STROKE
         paint.strokeJoin = android.graphics.Paint.Join.ROUND
-        paint.strokeWidth = resources.displayMetrics.density * 2.4f
+        paint.strokeWidth = resources.displayMetrics.density * 1.1f
         paint.color = 0xFF000000.toInt()
         super.onDraw(canvas)
         paint.style = android.graphics.Paint.Style.FILL
@@ -86,7 +86,8 @@ class ModelArActivity : Activity() {
         super.onCreate(savedInstanceState)
         status = OutlinedStatusTextView(this).apply {
             text = "Camera en geografische plaatsing starten…"
-            textSize = 12f
+            textSize = 14f
+            setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.SANS_SERIF, android.graphics.Typeface.NORMAL))
             setTextColor(0xFFFFFFFF.toInt())
             setPadding(dp(12), dp(6), dp(12), dp(6))
             gravity = Gravity.CENTER_VERTICAL
