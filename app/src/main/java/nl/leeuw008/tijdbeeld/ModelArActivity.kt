@@ -25,25 +25,8 @@ import com.google.ar.core.exceptions.UnavailableException
 
 internal const val OMMERSCHANS_PHOTO_TITLE = "1900 - Ommerschans Hoofdgebouw"
 
-/** Status text with a true black text outline for readability over the live camera image. */
-private class OutlinedStatusTextView(context: android.content.Context) : TextView(context) {
-    override fun onDraw(canvas: android.graphics.Canvas) {
-        val originalStyle = paint.style
-        val originalStrokeWidth = paint.strokeWidth
-        val originalColor = paint.color
-        paint.style = android.graphics.Paint.Style.STROKE
-        paint.strokeJoin = android.graphics.Paint.Join.ROUND
-        paint.strokeWidth = resources.displayMetrics.density * 1.1f
-        paint.color = 0xFF000000.toInt()
-        super.onDraw(canvas)
-        paint.style = android.graphics.Paint.Style.FILL
-        paint.color = 0xFFFFFFFF.toInt()
-        super.onDraw(canvas)
-        paint.style = originalStyle
-        paint.strokeWidth = originalStrokeWidth
-        paint.color = originalColor
-    }
-}
+/** White status text with a subtle black halo over the live camera image. */
+private class OutlinedStatusTextView(context: android.content.Context) : TextView(context)
 
 /** Separate AR view for the Ommerschans GLB; the historical-photo flow is untouched. */
 class ModelArActivity : Activity() {
@@ -89,6 +72,8 @@ class ModelArActivity : Activity() {
             textSize = 14f
             setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.SANS_SERIF, android.graphics.Typeface.NORMAL))
             setTextColor(0xFFFFFFFF.toInt())
+            // Eén normale witte tekstlaag met een dunne zwarte halo; geen dubbele contourtekening.
+            setShadowLayer(resources.displayMetrics.density * 0.9f, 0f, 0f, 0xFF000000.toInt())
             setPadding(dp(12), dp(6), dp(12), dp(6))
             gravity = Gravity.CENTER_VERTICAL
             maxLines = 2
