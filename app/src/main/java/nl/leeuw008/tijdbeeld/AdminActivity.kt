@@ -1109,9 +1109,27 @@ class AdminActivity : Activity() {
             Toast.makeText(this, "Opslaan geweigerd: de fotolijst is leeg. Bestaande gegevens zijn behouden.", Toast.LENGTH_LONG).show()
             return false
         }
-        return editor.putString("photos", newJson)
+        val committed = editor.putString("photos", newJson)
             .putString("featured_photo_id", featuredPhotoId)
             .commit()
+        if (!committed) return false
+
+        // Verify the exact payload from disk before reporting success. A successful
+        // SharedPreferences commit alone is not enough if a later form write replaces it.
+        val storedJson = try {
+            prefs.getString("photos", null)
+        } catch (_: Exception) {
+            null
+        } ?: return false
+        if (storedJson != newJson) return false
+        return try {
+            val storedArray = JSONArray(storedJson)
+            storedArray.length() == array.length() &&
+                storedArray.length() > 0 &&
+                storedArray.getJSONObject(0).optString("id") == photos.first().id
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun publishCatalog() {
