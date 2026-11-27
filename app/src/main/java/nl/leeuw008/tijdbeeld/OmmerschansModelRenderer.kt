@@ -30,6 +30,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     private val glModelTextures = mutableMapOf<Int, Int>()
     @Volatile private var loadStarted = false
     @Volatile private var anchor: Anchor? = null
+    @Volatile private var testAnchor: Anchor? = null
     @Volatile private var freeAnchor: Anchor? = null
     @Volatile private var freePlacementMode = false
     @Volatile private var freePlacementDistanceMeters = 10f
@@ -44,6 +45,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     @Volatile private var maxHeadingAccuracyDegrees = 15.0
     @Volatile private var targetChosen = false
     private var anchorRequested = false
+    private var testAnchorRequested = false
     private var standaloneTransformReady = false
     private val standaloneModel = FloatArray(16)
     private val modelOrientation180 = FloatArray(16)
@@ -223,8 +225,12 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         targetLatitude = objectLat
         targetLongitude = objectLng
         targetChosen = false
+        anchor?.detach()
+        testAnchor?.detach()
         anchor = null
+        testAnchor = null
         anchorRequested = false
+        testAnchorRequested = false
     }
 
     private fun distanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
@@ -343,51 +349,57 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                 return
             }
             if (!targetChosen) {
-                val objectDistance = distanceMeters(pose.latitude, pose.longitude, objectLatitude, objectLongitude)
-                val testDistance = if (hasTestTarget) {
-                    distanceMeters(pose.latitude, pose.longitude, testLatitude, testLongitude)
-                } else Double.POSITIVE_INFINITY
-                val useTestLocation = testDistance < objectDistance
-                targetLatitude = if (useTestLocation) testLatitude else objectLatitude
-                targetLongitude = if (useTestLocation) testLongitude else objectLongitude
                 targetChosen = true
-                report(if (useTestLocation) {
-                    "Testlocatie is het dichtstbij; 3D-model wordt daar geplaatst…"
-                } else {
-                    "Objectlocatie is het dichtstbij; 3D-model wordt daar geplaatst…"
-                })
+                report("Locatie en kompas zijn nauwkeurig genoeg. Het 3D-model wordt op beide ingestelde locaties geplaatst…")
             }
+            // Resolve both geographic locations independently. The same parsed model
+            // data is rendered at each anchor; proximity never selects one over the other.
             if (!anchorRequested && anchor == null) {
                 anchorRequested = true
-                report("Locatie gevonden. Het 3D-model wordt op de gekozen locatie geplaatst…")
-                // The model's 180-degree front/back correction is applied uniformly
-                // to the model transform below, not to the geospatial anchor.
                 earth.resolveAnchorOnTerrainAsync(
-                    targetLatitude, targetLongitude, 0.0,
+                    objectLatitude, objectLongitude, 0.0,
                     0f, 0f, 0f, 1f
                 ) { resolved, state ->
                     if (state == Anchor.TerrainAnchorState.SUCCESS && resolved != null) {
                         anchor = resolved
-                        report("3D-model geplaatst; schaal en oriëntatie moeten ter plaatse worden gecontroleerd.")
+                        report("3D-model op de objectlocatie geplaatst.")
                     } else {
                         anchorRequested = false
-                        report("Plaatsen van het 3D-model is mislukt: $state")
+                        report("Plaatsen op de objectlocatie is mislukt: $state")
                     }
                 }
             }
-            val a = anchor
-            if (a == null || a.trackingState != TrackingState.TRACKING || parts == null) return
+            if (hasTestTarget && !testAnchorRequested && testAnchor == null) {
+                testAnchorRequested = true
+                earth.resolveAnchorOnTerrainAsync(
+                    testLatitude, testLongitude, 0.0,
+                    0f, 0f, 0f, 1f
+                ) { resolved, state ->
+                    if (state == Anchor.TerrainAnchorState.SUCCESS && resolved != null) {
+                        testAnchor = resolved
+                        report("3D-model ook op de testlocatie geplaatst.")
+                    } else {
+                        testAnchorRequested = false
+                        report("Plaatsen op de testlocatie is mislukt: $state")
+                    }
+                }
+            }
+            val activeAnchors = listOfNotNull(anchor, testAnchor)
+                .filter { it.trackingState == TrackingState.TRACKING }
+            if (activeAnchors.isEmpty() || parts == null) return
             frame.camera.getViewMatrix(view,0)
             frame.camera.getProjectionMatrix(projection,0,0.1f,1000f)
-            a.pose.toMatrix(model,0)
-            Matrix.multiplyMM(standaloneRotatedModel,0,model,0,modelOrientation180,0)
-            Matrix.multiplyMM(mv,0,view,0,standaloneRotatedModel,0)
-            Matrix.multiplyMM(mvp,0,projection,0,mv,0)
             GLES20.glEnable(GLES20.GL_DEPTH_TEST)
             GLES20.glEnable(GLES20.GL_CULL_FACE)
             GLES20.glUseProgram(modelProgram)
-            GLES20.glUniformMatrix4fv(modelMvp,1,false,mvp,0)
-            drawModelParts(parts)
+            for (activeAnchor in activeAnchors) {
+                activeAnchor.pose.toMatrix(model,0)
+                Matrix.multiplyMM(standaloneRotatedModel,0,model,0,modelOrientation180,0)
+                Matrix.multiplyMM(mv,0,view,0,standaloneRotatedModel,0)
+                Matrix.multiplyMM(mvp,0,projection,0,mv,0)
+                GLES20.glUniformMatrix4fv(modelMvp,1,false,mvp,0)
+                drawModelParts(parts)
+            }
             GLES20.glDisable(GLES20.GL_CULL_FACE)
         } catch (e: Exception) {
             report("3D-camera fout: ${e.message ?: e.javaClass.simpleName}")
