@@ -1576,8 +1576,9 @@ class AdminActivity : Activity() {
 
         screen.addView(actionButton("Opslaan") {
             if (mapReady) {
-                map.evaluateJavascript("TijdBeeld.savePins();", null)
-                map.evaluateJavascript("TijdBeeld.saveMapView();", null)
+                // savePins/saveMapView zijn JavaScript-functies in de kaartpagina,
+                // niet methoden van de Android-bridge TijdBeeld.
+                map.evaluateJavascript("savePins(); saveMapView();", null)
             } else {
                 Toast.makeText(this@AdminActivity, "De kaart is nog niet gereed. Probeer het opnieuw.", Toast.LENGTH_SHORT).show()
             }
@@ -1767,7 +1768,9 @@ class AdminActivity : Activity() {
                     }
                     // GPS-posities worden lokaal opgeslagen; publicatie is een aparte handeling.
                     val saved = saveAll()
-                    if (!saved) {
+                    if (saved) {
+                        Toast.makeText(this@AdminActivity, "Kaartpositie opgeslagen.", Toast.LENGTH_SHORT).show()
+                    } else {
                         Toast.makeText(this@AdminActivity, "Opslaan van de kaartpositie is mislukt. De oude gegevens zijn behouden.", Toast.LENGTH_LONG).show()
                     }
                 }
