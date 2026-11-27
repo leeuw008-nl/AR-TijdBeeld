@@ -13,8 +13,8 @@ android {
         applicationId = "nl.leeuw008.tijdbeeld.diagnose32stable"
         minSdk = 24
         targetSdk = 32
-        versionCode = 5
-        versionName = "0.1.5"
+        versionCode = 6
+        versionName = "0.1.6"
         buildConfigField("String", "BUILD_NUMBER", "\"${System.getenv("GITHUB_RUN_NUMBER") ?: "local"}\"")
         // Required for ARCore Geospatial API authorization.
         manifestPlaceholders["appLabel"] = "AR-TijdBeeld"
