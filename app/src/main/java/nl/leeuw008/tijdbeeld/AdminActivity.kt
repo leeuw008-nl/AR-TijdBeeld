@@ -234,7 +234,8 @@ class AdminActivity : Activity() {
                     val o = array.getJSONObject(i)
                     loadedPhotos.add(PhotoConfig(
                         o.optString("title"), o.optString("imageUrl"),
-                        o.optDouble("objectLat", 52.518349), o.optDouble("objectLng", 6.420889),
+                        if (o.isNull("objectLat")) Double.NaN else o.optDouble("objectLat", 52.518349),
+                        if (o.isNull("objectLng")) Double.NaN else o.optDouble("objectLng", 6.420889),
                         o.optDouble("cameraLat", 52.518263), o.optDouble("cameraLng", 6.421917),
                         o.optDouble("imageWidthMeters", 3.0).toFloat().coerceIn(1f, 12f),
                         o.optString("id").ifBlank { UUID.randomUUID().toString() },
@@ -306,8 +307,8 @@ class AdminActivity : Activity() {
                 remotePhotos.add(PhotoConfig(
                     o.optString("title"),
                     o.optString("imageUrl"),
-                    o.optDouble("objectLat", 52.518349),
-                    o.optDouble("objectLng", 6.420889),
+                    if (o.isNull("objectLat")) Double.NaN else o.optDouble("objectLat", 52.518349),
+                    if (o.isNull("objectLng")) Double.NaN else o.optDouble("objectLng", 6.420889),
                     o.optDouble("cameraLat", 52.518263),
                     o.optDouble("cameraLng", 6.421917),
                     o.optDouble("imageWidthMeters", 3.0).toFloat().coerceIn(1f, 12f),
@@ -1347,6 +1348,14 @@ class AdminActivity : Activity() {
         val isModel = item.objectType == "MODEL"
         val hasGlbUrl = item.modelUrl.trim().startsWith("https://", ignoreCase = true) &&
             item.modelUrl.trim().substringBefore('?').endsWith(".glb", ignoreCase = true)
+        if (!isModel || !hasGlbUrl) {
+            updatingFields = true
+            objectLatInput.setText("")
+            objectLngInput.setText("")
+            testLatInput.setText("")
+            testLngInput.setText("")
+            updatingFields = false
+        }
         styleObjectTypeButton(objectTypePhotoButton, !isModel)
         styleObjectTypeButton(objectTypeModelButton, isModel && hasGlbUrl, unavailable = !hasGlbUrl)
         cameraFieldsContainer.visibility = if (isModel) View.GONE else View.VISIBLE
