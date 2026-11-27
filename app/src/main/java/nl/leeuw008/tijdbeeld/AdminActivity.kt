@@ -1109,6 +1109,7 @@ class AdminActivity : Activity() {
     }
 
     private fun publishCatalog() {
+        photos.forEach { normalizePhotoRecord(it) }
         if (sessionToken.isBlank()) {
             Toast.makeText(this,
                 if (localTestMode) "Startpaginafoto is op dit toestel opgeslagen; voor openbare publicatie moet je opnieuw inloggen."
@@ -1504,6 +1505,13 @@ class AdminActivity : Activity() {
     private fun openMapPage() {
         if (mapScreenActive) return
         if (adminScreenView == null) return
+        val selectedItem = photos.getOrNull(selected)
+        if (selectedItem?.objectType == "MODEL" &&
+            (!selectedItem.modelUrl.trim().startsWith("https://", ignoreCase = true) ||
+                !selectedItem.modelUrl.trim().substringBefore('?').endsWith(".glb", ignoreCase = true))) {
+            Toast.makeText(this, "Vul eerst een geldige HTTPS-URL van het GLB-bestand in.", Toast.LENGTH_LONG).show()
+            return
+        }
         mapScreenActive = true
         val screen = FrameLayout(this).apply { setBackgroundColor(0xFFFFFFFF.toInt()) }
         map = WebView(this).apply {
