@@ -508,6 +508,13 @@ class AdminActivity : Activity() {
                 setOnFocusChangeListener { _, hasFocus ->
                     if (!hasFocus && photos.getOrNull(selected)?.objectType == "MODEL") refreshModelPreview(force = true)
                 }
+                addTextChangedListener(object : TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                        if (!updatingFields) updateTypeFields()
+                    }
+                    override fun afterTextChanged(s: Editable?) = Unit
+                })
             }
             modelPhotoUrlInput = addField(formPanel, "URL van de bijbehorende foto (verplicht bij 3D-model)", "https://…")
 
@@ -754,9 +761,11 @@ class AdminActivity : Activity() {
         selected = index.coerceIn(0, photos.lastIndex)
         updatingFields = true
         val p = photos[selected]
+        normalizePhotoRecord(p)
         titleInput.setText(p.title); urlInput.setText(if (p.objectType == "MODEL") p.modelUrl else p.imageUrl)
         modelPhotoUrlInput.setText(p.imageUrl)
-        objectLatInput.setText(p.objectLat.toString()); objectLngInput.setText(p.objectLng.toString())
+        objectLatInput.setText(if (p.objectLat.isFinite()) p.objectLat.toString() else "")
+        objectLngInput.setText(if (p.objectLng.isFinite()) p.objectLng.toString() else "")
         photoObjectLatInput.setText(if (p.photoObjectLat.isFinite()) p.photoObjectLat.toString() else "")
         photoObjectLngInput.setText(if (p.photoObjectLng.isFinite()) p.photoObjectLng.toString() else "")
         testLatInput.setText(if (p.testLat.isFinite()) p.testLat.toString() else "")
@@ -854,14 +863,26 @@ class AdminActivity : Activity() {
         } else {
             p.imageUrl = mediaUrl
         }
-        p.objectLat = objectLatInput.numberOr(p.objectLat)
-        p.objectLng = objectLngInput.numberOr(p.objectLng)
         p.photoObjectLat = photoObjectLatInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN
         p.photoObjectLng = photoObjectLngInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN
+        val hasGlbUrl = p.modelUrl.trim().startsWith("https://", ignoreCase = true) &&
+            p.modelUrl.trim().substringBefore('?').endsWith(".glb", ignoreCase = true)
+        if (p.objectType == "MODEL" && hasGlbUrl) {
+            p.objectLat = objectLatInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN
+            p.objectLng = objectLngInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN
+        } else {
+            p.objectLat = Double.NaN
+            p.objectLng = Double.NaN
+        }
         p.cameraLat = cameraLatInput.numberOr(p.cameraLat)
         p.cameraLng = cameraLngInput.numberOr(p.cameraLng)
-        p.testLat = if (::testLatInput.isInitialized) testLatInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN else p.testLat
-        p.testLng = if (::testLngInput.isInitialized) testLngInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN else p.testLng
+        if (p.objectType == "MODEL" && hasGlbUrl) {
+            p.testLat = if (::testLatInput.isInitialized) testLatInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN else Double.NaN
+            p.testLng = if (::testLngInput.isInitialized) testLngInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN else Double.NaN
+        } else {
+            p.testLat = Double.NaN
+            p.testLng = Double.NaN
+        }
         saveAll()
     }
 
@@ -1258,10 +1279,18 @@ class AdminActivity : Activity() {
         loadImageInto(url, preview, showMessage)
     }
 
-    private fun styleObjectTypeButton(button: Button, selected: Boolean) {
-        val color = if (selected) 0xFF2E7D32.toInt() else 0xFFE6EBF0.toInt()
+    private fun styleObjectTypeButton(button: Button, selected: Boolean, unavailable: Boolean = false) {
+        val color = when {
+            unavailable -> 0xFFF6DADA.toInt()
+            selected -> 0xFF2E7D32.toInt()
+            else -> 0xFFE6EBF0.toInt()
+        }
         button.backgroundTintList = android.content.res.ColorStateList.valueOf(color)
-        button.setTextColor(if (selected) 0xFFFFFFFF.toInt() else 0xFF263746.toInt())
+        button.setTextColor(when {
+            unavailable -> 0xFF8A3030.toInt()
+            selected -> 0xFFFFFFFF.toInt()
+            else -> 0xFF263746.toInt()
+        })
     }
 
     private fun selectObjectType(type: String) {
@@ -1296,18 +1325,21 @@ class AdminActivity : Activity() {
 
     private fun updateTypeFields() {
         if (!::objectTypeButtons.isInitialized || photos.isEmpty()) return
-        val isModel = photos[selected].objectType == "MODEL"
+        val item = photos[selected]
+        val isModel = item.objectType == "MODEL"
+        val hasGlbUrl = item.modelUrl.trim().startsWith("https://", ignoreCase = true) &&
+            item.modelUrl.trim().substringBefore('?').endsWith(".glb", ignoreCase = true)
         styleObjectTypeButton(objectTypePhotoButton, !isModel)
-        styleObjectTypeButton(objectTypeModelButton, isModel)
+        styleObjectTypeButton(objectTypeModelButton, isModel && hasGlbUrl, unavailable = !hasGlbUrl)
         cameraFieldsContainer.visibility = if (isModel) View.GONE else View.VISIBLE
         photoObjectFieldsContainer.visibility = if (isModel) View.GONE else View.VISIBLE
-        modelObjectFieldsContainer.visibility = if (isModel) View.VISIBLE else View.GONE
-        testFieldsContainer.visibility = if (isModel) View.VISIBLE else View.GONE
+        modelObjectFieldsContainer.visibility = if (isModel && hasGlbUrl) View.VISIBLE else View.GONE
+        testFieldsContainer.visibility = if (isModel && hasGlbUrl) View.VISIBLE else View.GONE
         preview.visibility = if (isModel) View.GONE else View.VISIBLE
         modelPhotoUrlInput.visibility = if (isModel) View.VISIBLE else View.GONE
         urlInput.hint = if (isModel) "HTTPS-URL naar een GLB 2.0-bestand" else "HTTPS-URL van de historische foto"
-        modelPreviewButton?.visibility = if (isModel) View.VISIBLE else View.GONE
-        if (isModel) {
+        modelPreviewButton?.visibility = if (isModel && hasGlbUrl) View.VISIBLE else View.GONE
+        if (isModel && hasGlbUrl) {
             refreshModelPreview()
         } else {
             destroyModelPreview()
