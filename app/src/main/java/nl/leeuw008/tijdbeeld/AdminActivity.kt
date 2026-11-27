@@ -775,6 +775,9 @@ class AdminActivity : Activity() {
         publishCheckbox.isChecked = p.published
         updatingFields = false
         updateTypeFields()
+        // Direct opslaan zorgt dat oude Foto-records hun fotopositie onder veld 2
+        // bewaren en dat ongebruikte 3D-velden zonder GLB meteen leeg worden.
+        persistCurrentForm()
         refreshPhotoSelector()
         updateMapFromFields(fit = true)
     }
@@ -1071,7 +1074,7 @@ class AdminActivity : Activity() {
         photos.forEach { p ->
             array.put(JSONObject().put("id", p.id).put("title", p.title).put("imageUrl", p.imageUrl)
                 .put("source", p.source).put("sourceId", p.sourceId)
-                 .put("objectLat", if (p.objectLat.isFinite()) p.objectLat else JSONObject.NULL)
+                .put("objectLat", if (p.objectLat.isFinite()) p.objectLat else JSONObject.NULL)
                 .put("objectLng", if (p.objectLng.isFinite()) p.objectLng else JSONObject.NULL)
                 .put("photoObjectLat", if (p.photoObjectLat.isFinite()) p.photoObjectLat else JSONObject.NULL)
                 .put("photoObjectLng", if (p.photoObjectLng.isFinite()) p.photoObjectLng else JSONObject.NULL)
