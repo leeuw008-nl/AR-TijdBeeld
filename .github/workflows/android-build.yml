@@ -2,7 +2,7 @@ name: Android build
 
 on:
   push:
-    branches: [ main, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes, feature/ommerschans-photo-georef, fix/ommerschans-topokaart-footprint, fix/persistent-admin-session-and-inner-wall, fix/backup-export-import-from-build-139, fix/camera-controls-250m-top, release/werkende-versie-alle-6-punten ]
+    branches: [ main, feature/objecten-foto-en-3d, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes, feature/ommerschans-photo-georef, fix/ommerschans-topokaart-footprint, fix/persistent-admin-session-and-inner-wall, fix/backup-export-import-from-build-139, fix/camera-controls-250m-top, release/werkende-versie-alle-6-punten ]
   pull_request:
     branches: [ main, release/werkende-versie-alle-6-punten, stable/build-282-perfect ]
   workflow_dispatch:
