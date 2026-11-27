@@ -2,7 +2,7 @@ name: Android build
 
 on:
   push:
-    branches: [ main, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes, feature/ommerschans-photo-georef, fix/ommerschans-topokaart-footprint, fix/persistent-admin-session-and-inner-wall, fix/backup-export-import-from-build-139, fix/camera-controls-250m-top, release/werkende-versie-alle-6-punten ]
+    branches: [ main, feature/objecten-foto-en-3d, feature/admin-photo-position-editor, feature/geospatial-anchor-prototype, feature/user-admin-modes, feature/ommerschans-photo-georef, fix/ommerschans-topokaart-footprint, fix/persistent-admin-session-and-inner-wall, fix/backup-export-import-from-build-139, fix/camera-controls-250m-top, release/werkende-versie-alle-6-punten ]
   pull_request:
     branches: [ main, release/werkende-versie-alle-6-punten, stable/build-282-perfect ]
   workflow_dispatch:
@@ -46,7 +46,7 @@ jobs:
           fi
           test -s ~/.android/debug.keystore
 
-      - name: Verify exact build 239 signing certificate
+      - name: Verify persistent diagnostic signing certificate
         run: |
           set -euo pipefail
           ACTUAL_SHA1="$(keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey | awk -F': ' '/SHA1:/{gsub(":","",$2); print tolower($2); exit}')"
@@ -108,7 +108,7 @@ jobs:
           fi
           "$APKSIGNER" verify --verbose --print-certs dist/AR-TijdBeeld.apk
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
-          "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='5'|application-label:'AR-TijdBeeld'"
+          "$AAPT" dump badging dist/AR-TijdBeeld.apk | grep -E "package: name='nl.leeuw008.tijdbeeld.diagnose32stable' versionCode='6'|application-label:'AR-TijdBeeld'"
 
       - name: Upload AR-TijdBeeld APK
         uses: actions/upload-artifact@v4
