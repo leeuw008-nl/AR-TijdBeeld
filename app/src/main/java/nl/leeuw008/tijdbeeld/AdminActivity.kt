@@ -531,7 +531,7 @@ class AdminActivity : Activity() {
             val testCoordinates = coordinateRow(testFieldsContainer, "Breedtegraad (latitude)", "52.518349", "Lengtegraad (longitude)", "6.420889")
             testLatInput = testCoordinates.first
             testLngInput = testCoordinates.second
-            // De AR-weergave kiest automatisch de dichtstbijzijnde van Locatie en Testlocatie.
+            // Het 3D-model wordt straks gelijktijdig op de objectlocatie en testlocatie geplaatst.
             formPanel.addView(testFieldsContainer)
             addSection(formPanel, "Kaart en camerabeeld")
             if (currentSection == "edit") {
@@ -621,7 +621,7 @@ class AdminActivity : Activity() {
             }
             formPanel.addView(publishCheckbox)
             formPanel.addView(TextView(this).apply {
-                text = "Tip: sleep op de kaart de blauwe speld (Locatie) of rode speld (Fotolocatie bij Foto / Testlocatie bij 3D-model) naar de juiste plek."
+                text = "Sleep de spelden op de kaart afzonderlijk naar de juiste plek: modelobject, foto-object, fotograaf en testlocatie."
                 textSize = 12f
                 setTextColor(0xFF5B6873.toInt())
                 setPadding(2, dp(8), 2, dp(4))
@@ -1495,9 +1495,13 @@ class AdminActivity : Activity() {
         val isModel = photos.getOrNull(selected)?.objectType == "MODEL"
         val olat = objectLatInput.numberOr(52.518349)
         val olng = objectLngInput.numberOr(6.420889)
-        val tlat = if (isModel) testLatInput.numberOr(olat) else cameraLatInput.numberOr(52.518263)
-        val tlng = if (isModel) testLngInput.numberOr(olng) else cameraLngInput.numberOr(6.421917)
-        val js = "if(window.setPoints){setPoints($olat,$olng,$tlat,$tlng,$fit,true);}"
+        val polat = photoObjectLatInput.text.toString().trim().toDoubleOrNull() ?: olat
+        val polng = photoObjectLngInput.text.toString().trim().toDoubleOrNull() ?: olng
+        val clat = cameraLatInput.numberOr(52.518263)
+        val clng = cameraLngInput.numberOr(6.421917)
+        val tlat = if (isModel) testLatInput.numberOr(olat) else olat
+        val tlng = if (isModel) testLngInput.numberOr(olng) else olng
+        val js = "if(window.setPoints){setPoints($olat,$olng,$polat,$polng,$clat,$clng,$tlat,$tlng,$fit,$isModel);}"
         if (mapReady && mapScreenActive) map.evaluateJavascript(js, null)
     }
 
@@ -1505,13 +1509,16 @@ class AdminActivity : Activity() {
         val isModel = photos.getOrNull(selected)?.objectType == "MODEL"
         val olat = objectLatInput.numberOr(52.518349)
         val olng = objectLngInput.numberOr(6.420889)
-        val tlat = if (isModel) testLatInput.numberOr(olat) else cameraLatInput.numberOr(52.518263)
-        val tlng = if (isModel) testLngInput.numberOr(olng) else cameraLngInput.numberOr(6.421917)
-        val centerLat = prefs.getString("mapCenterLat", null)?.toDoubleOrNull() ?: (olat + tlat) / 2.0
-        val centerLng = prefs.getString("mapCenterLng", null)?.toDoubleOrNull() ?: (olng + tlng) / 2.0
+        val polat = photoObjectLatInput.text.toString().trim().toDoubleOrNull() ?: olat
+        val polng = photoObjectLngInput.text.toString().trim().toDoubleOrNull() ?: olng
+        val clat = cameraLatInput.numberOr(52.518263)
+        val clng = cameraLngInput.numberOr(6.421917)
+        val tlat = if (isModel) testLatInput.numberOr(olat) else olat
+        val tlng = if (isModel) testLngInput.numberOr(olng) else olng
+        val centerLat = prefs.getString("mapCenterLat", null)?.toDoubleOrNull() ?: (olat + clat + if (isModel) polat + tlat else 0.0) / if (isModel) 4.0 else 2.0
+        val centerLng = prefs.getString("mapCenterLng", null)?.toDoubleOrNull() ?: (olng + clng + if (isModel) polng + tlng else 0.0) / if (isModel) 4.0 else 2.0
         val zoom = prefs.getInt("mapZoom", 17)
         val mapBackground = prefs.getString("map_background", "pdok")
-        val secondPinLabel = if (isModel) "Testlocatie" else "Fotolocatie"
         val tileLayerJs = when (mapBackground) {
             "osm" -> "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);"
             "opentopo" -> "L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:18,maxNativeZoom:17,attribution:'© OpenTopoMap (CC-BY-SA)'}).addTo(map);"
@@ -1535,21 +1542,20 @@ class AdminActivity : Activity() {
           return L.divIcon({className:'',iconSize:[112,40],iconAnchor:[15,36],
             html:'<div class="pin-label">'+svg+'<span>'+label+'</span></div>'});
         }
-        var objectPin=L.marker([${olat},${olng}],{draggable:true,icon:labeledIcon('Locatie','#1769d2')}).addTo(map);
-        var testPin=L.marker([${tlat},${tlng}],{draggable:true,icon:labeledIcon('${secondPinLabel}','#d52b35')}).addTo(map);
+        var objectPin=L.marker([${olat},${olng}],{draggable:true,icon:labeledIcon(isModel?'Modelobject':'Foto-object','#1769d2')}).addTo(map);
+        var photoObjectPin=L.marker([${polat},${polng}],{draggable:true,icon:labeledIcon('Foto-object','#7b4db5')}).addTo(map);
+        var cameraPin=L.marker([${clat},${clng}],{draggable:true,icon:labeledIcon('Fotograaf','#16845b')}).addTo(map);
+        var testPin=L.marker([${tlat},${tlng}],{draggable:true,icon:labeledIcon('Testlocatie','#d52b35')}).addTo(map);
         objectPin.on('dragend',function(){var p=objectPin.getLatLng();TijdBeeld.onMapMove('object',p.lat,p.lng);});
+        photoObjectPin.on('dragend',function(){var p=photoObjectPin.getLatLng();TijdBeeld.onMapMove('photoObject',p.lat,p.lng);});
+        cameraPin.on('dragend',function(){var p=cameraPin.getLatLng();TijdBeeld.onMapMove('camera',p.lat,p.lng);});
         testPin.on('dragend',function(){var p=testPin.getLatLng();TijdBeeld.onMapMove('test',p.lat,p.lng);});
-        function setPoints(a,b,c,d,fit,showTest){
-          objectPin.setLatLng([a,b]);testPin.setLatLng([c,d]);
-          testPin.setOpacity(showTest===false?0:1);
+        function setPoints(a,b,c,d,e,f,g,h,fit,isModel){
+          objectPin.setLatLng([a,b]);photoObjectPin.setLatLng([c,d]);cameraPin.setLatLng([e,f]);testPin.setLatLng([g,h]);
+          photoObjectPin.setOpacity(isModel===true?1:0);testPin.setOpacity(isModel===true?1:0);
           if(fit!==false){
-            var bounds=L.latLngBounds([[a,b],[c,d]]);
-            map.fitBounds(bounds,{
-              paddingTopLeft:[32,84],
-              paddingBottomRight:[32,78],
-              maxZoom:17,
-              animate:false
-            });
+            var points=isModel===true?[[a,b],[c,d],[e,f],[g,h]]:[[a,b],[e,f]];
+            map.fitBounds(L.latLngBounds(points),{paddingTopLeft:[32,84],paddingBottomRight:[32,78],maxZoom:17,animate:false});
           }
         }
         function saveMapView(){var p=map.getCenter();TijdBeeld.onMapViewport(p.lat,p.lng,map.getZoom());}
@@ -1567,22 +1573,24 @@ class AdminActivity : Activity() {
                 val isModel = photos.getOrNull(selected)?.objectType == "MODEL"
                 val olat = objectLatInput.numberOr(52.518349)
                 val olng = objectLngInput.numberOr(6.420889)
-                val tlat = if (isModel) testLatInput.numberOr(olat) else cameraLatInput.numberOr(52.518263)
-                val tlng = if (isModel) testLngInput.numberOr(olng) else cameraLngInput.numberOr(6.421917)
-                // Always frame both current location pins when opening the topo map.
-                map.evaluateJavascript("setPoints($olat,$olng,$tlat,$tlng,true,true);", null)
+                val polat = photoObjectLatInput.text.toString().trim().toDoubleOrNull() ?: olat
+                val polng = photoObjectLngInput.text.toString().trim().toDoubleOrNull() ?: olng
+                val clat = cameraLatInput.numberOr(52.518263)
+                val clng = cameraLngInput.numberOr(6.421917)
+                val tlat = if (isModel) testLatInput.numberOr(olat) else olat
+                val tlng = if (isModel) testLngInput.numberOr(olng) else olng
+                map.evaluateJavascript("setPoints($olat,$olng,$polat,$polng,$clat,$clng,$tlat,$tlng,true,$isModel);", null)
             }
         }
         @JavascriptInterface fun onMapMove(kind: String, lat: Double, lng: Double) {
             runOnUiThread {
                 updatingFields = true
                 val item = photos.getOrNull(selected)
-                if (kind == "object") {
-                    objectLatInput.setText(lat.toString()); objectLngInput.setText(lng.toString())
-                } else if (item?.objectType == "MODEL") {
-                    testLatInput.setText(lat.toString()); testLngInput.setText(lng.toString())
-                } else {
-                    cameraLatInput.setText(lat.toString()); cameraLngInput.setText(lng.toString())
+                when (kind) {
+                    "object" -> { objectLatInput.setText(lat.toString()); objectLngInput.setText(lng.toString()) }
+                    "photoObject" -> { photoObjectLatInput.setText(lat.toString()); photoObjectLngInput.setText(lng.toString()) }
+                    "camera" -> { cameraLatInput.setText(lat.toString()); cameraLngInput.setText(lng.toString()) }
+                    "test" -> { testLatInput.setText(lat.toString()); testLngInput.setText(lng.toString()) }
                 }
                 updatingFields = false
                 hasLocalEditsSinceLaunch = true
@@ -1591,11 +1599,9 @@ class AdminActivity : Activity() {
                 if (item != null) {
                     when (kind) {
                         "object" -> { item.objectLat = lat; item.objectLng = lng }
-                        else -> if (item.objectType == "MODEL") {
-                            item.testLat = lat; item.testLng = lng
-                        } else {
-                            item.cameraLat = lat; item.cameraLng = lng
-                        }
+                        "photoObject" -> { item.photoObjectLat = lat; item.photoObjectLng = lng }
+                        "camera" -> { item.cameraLat = lat; item.cameraLng = lng }
+                        "test" -> { item.testLat = lat; item.testLng = lng }
                     }
                     saveAll()
                     if (item.published) publishCatalog()
