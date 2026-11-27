@@ -26,6 +26,8 @@ private data class CatalogPhoto(
     val imageUrl: String,
     val objectLat: Double,
     val objectLng: Double,
+    val photoObjectLat: Double,
+    val photoObjectLng: Double,
     val cameraLat: Double,
     val cameraLng: Double,
     val imageWidthMeters: Float,
@@ -144,6 +146,7 @@ class PhotoOverviewActivity : Activity() {
                     if (objectType != "MODEL" && imageUrl.isBlank()) continue
                     loaded.add(CatalogPhoto(
                         item.optString("id", "object-$i"), title, imageUrl, lat, lng,
+                        item.optDouble("photoObjectLat", lat), item.optDouble("photoObjectLng", lng),
                         item.optDouble("cameraLat", lat), item.optDouble("cameraLng", lng),
                         item.optDouble("imageWidthMeters", 3.0).toFloat().coerceIn(1f, 12f),
                         objectType, modelUrl, modelAsset,
@@ -217,7 +220,9 @@ class PhotoOverviewActivity : Activity() {
         val sorted = if (origin != null) {
             photos.sortedBy { photo ->
                 val result = FloatArray(1)
-                Location.distanceBetween(origin.latitude, origin.longitude, photo.objectLat, photo.objectLng, result)
+                val targetLat = if (photo.objectType == "MODEL") photo.objectLat else photo.photoObjectLat
+                val targetLng = if (photo.objectType == "MODEL") photo.objectLng else photo.photoObjectLng
+                Location.distanceBetween(origin.latitude, origin.longitude, targetLat, targetLng, result)
                 result[0]
             }
         } else photos.sortedBy { it.title.lowercase(Locale.ROOT) }
@@ -228,7 +233,9 @@ class PhotoOverviewActivity : Activity() {
         sorted.forEach { photo ->
             val distanceLabel = origin?.let {
                 val result = FloatArray(1)
-                Location.distanceBetween(it.latitude, it.longitude, photo.objectLat, photo.objectLng, result)
+                val targetLat = if (photo.objectType == "MODEL") photo.objectLat else photo.photoObjectLat
+                val targetLng = if (photo.objectType == "MODEL") photo.objectLng else photo.photoObjectLng
+                Location.distanceBetween(it.latitude, it.longitude, targetLat, targetLng, result)
                 formatDistance(result[0])
             } ?: "Afstand onbekend"
             val item = LinearLayout(this).apply {
@@ -314,8 +321,8 @@ class PhotoOverviewActivity : Activity() {
         startActivity(Intent(this, MainActivity::class.java).apply {
             putExtra("title", photo.title)
             putExtra("imageUrl", photo.imageUrl)
-            putExtra("objectLat", photo.objectLat)
-            putExtra("objectLng", photo.objectLng)
+            putExtra("objectLat", photo.photoObjectLat)
+            putExtra("objectLng", photo.photoObjectLng)
             putExtra("cameraLat", photo.cameraLat)
             putExtra("cameraLng", photo.cameraLng)
             putExtra("imageWidthMeters", photo.imageWidthMeters)
