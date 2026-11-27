@@ -95,7 +95,7 @@ function catalogValidationError(value) {
     const type = photo.type || "PHOTO";
     if (type === "MODEL") {
       if (!(typeof photo.modelUrl === "string" && photo.modelUrl.startsWith("https://")) &&
-          !(typeof photo.modelAsset === "string" && /^[a-zA-Z0-9._-]+\\.glb$/i.test(photo.modelAsset))) {
+          !(typeof photo.modelAsset === "string" && /^[a-zA-Z0-9._-]+[.]glb$/i.test(photo.modelAsset))) {
         return `"${label}": geldige GLB-URL of modelbestandsnaam ontbreekt`;
       }
       if (!["OBJECT", "TEST"].includes(photo.displayLocation || "OBJECT")) {
