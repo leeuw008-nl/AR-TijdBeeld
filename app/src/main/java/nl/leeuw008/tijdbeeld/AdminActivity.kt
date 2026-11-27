@@ -896,7 +896,11 @@ class AdminActivity : Activity() {
             lat.isFinite() && lat in -90.0..90.0 && lng.isFinite() && lng in -180.0..180.0
 
         if (item.title.isBlank()) return "de titel ontbreekt"
-        if (!validCoordinates(item.objectLat, item.objectLng)) return "de GPS-positie van het object ontbreekt of is ongeldig"
+        if (item.objectType == "MODEL") {
+            if (!validCoordinates(item.objectLat, item.objectLng)) return "de GPS-positie van het 3D-modelobject ontbreekt of is ongeldig"
+        } else {
+            if (!validCoordinates(item.photoObjectLat, item.photoObjectLng)) return "de GPS-positie van het foto-object ontbreekt of is ongeldig"
+        }
         if (!item.imageUrl.startsWith("https://")) return "de URL van de bijbehorende foto ontbreekt of is ongeldig"
 
         if (item.objectType == "MODEL") {
@@ -1065,7 +1069,8 @@ class AdminActivity : Activity() {
         photos.forEach { p ->
             array.put(JSONObject().put("id", p.id).put("title", p.title).put("imageUrl", p.imageUrl)
                 .put("source", p.source).put("sourceId", p.sourceId)
-                .put("objectLat", p.objectLat).put("objectLng", p.objectLng)
+                 .put("objectLat", if (p.objectLat.isFinite()) p.objectLat else JSONObject.NULL)
+                .put("objectLng", if (p.objectLng.isFinite()) p.objectLng else JSONObject.NULL)
                 .put("photoObjectLat", if (p.photoObjectLat.isFinite()) p.photoObjectLat else JSONObject.NULL)
                 .put("photoObjectLng", if (p.photoObjectLng.isFinite()) p.photoObjectLng else JSONObject.NULL)
                 .put("cameraLat", p.cameraLat).put("cameraLng", p.cameraLng)
@@ -1135,8 +1140,8 @@ class AdminActivity : Activity() {
                     .put("imageUrl", p.imageUrl)
                     .put("source", p.source)
                     .put("sourceId", p.sourceId)
-                    .put("objectLat", p.objectLat)
-                    .put("objectLng", p.objectLng)
+                    .put("objectLat", if (p.objectType == "MODEL") p.objectLat else p.photoObjectLat)
+                    .put("objectLng", if (p.objectType == "MODEL") p.objectLng else p.photoObjectLng)
                     .put("photoObjectLat", if (p.photoObjectLat.isFinite()) p.photoObjectLat else JSONObject.NULL)
                     .put("photoObjectLng", if (p.photoObjectLng.isFinite()) p.photoObjectLng else JSONObject.NULL)
                     .put("cameraLat", p.cameraLat)
@@ -1321,6 +1326,19 @@ class AdminActivity : Activity() {
             "PHOTO" -> "PHOTO"
             else -> if (item.optString("modelUrl").isNotBlank() || item.optString("modelAsset").isNotBlank()) "MODEL" else "PHOTO"
         }
+    }
+
+    private fun normalizePhotoRecord(item: PhotoConfig) {
+        if (item.objectType != "PHOTO") return
+        // Oude catalogusversies gebruikten objectLat/objectLng voor de fotolocatie.
+        // Zet die legacy-positie één keer over naar het expliciete foto-objectveld.
+        if (!item.photoObjectLat.isFinite() && item.objectLat.isFinite()) item.photoObjectLat = item.objectLat
+        if (!item.photoObjectLng.isFinite() && item.objectLng.isFinite()) item.photoObjectLng = item.objectLng
+        // Een Foto-object heeft geen 3D-modelcentrum of model-testlocatie.
+        item.objectLat = Double.NaN
+        item.objectLng = Double.NaN
+        item.testLat = Double.NaN
+        item.testLng = Double.NaN
     }
 
     private fun updateTypeFields() {
@@ -1562,11 +1580,14 @@ class AdminActivity : Activity() {
     }
 
     private fun updateMapFromFields(fit: Boolean = false) {
-        val isModel = photos.getOrNull(selected)?.objectType == "MODEL"
-        val olat = objectLatInput.numberOr(52.518349)
-        val olng = objectLngInput.numberOr(6.420889)
-        val polat = photoObjectLatInput.text.toString().trim().toDoubleOrNull() ?: olat
-        val polng = photoObjectLngInput.text.toString().trim().toDoubleOrNull() ?: olng
+        val current = photos.getOrNull(selected)
+        val isModel = current?.objectType == "MODEL" &&
+            current.modelUrl.trim().startsWith("https://", ignoreCase = true) &&
+            current.modelUrl.trim().substringBefore('?').endsWith(".glb", ignoreCase = true)
+        val olat = objectLatInput.text.toString().trim().toDoubleOrNull() ?: 52.518349
+        val olng = objectLngInput.text.toString().trim().toDoubleOrNull() ?: 6.420889
+        val polat = photoObjectLatInput.text.toString().trim().toDoubleOrNull() ?: 52.518349
+        val polng = photoObjectLngInput.text.toString().trim().toDoubleOrNull() ?: 6.420889
         val clat = cameraLatInput.numberOr(52.518263)
         val clng = cameraLngInput.numberOr(6.421917)
         // Als de testlocatie nog niet is ingevuld, toon de testspeld tijdelijk
@@ -1585,11 +1606,14 @@ class AdminActivity : Activity() {
     }
 
     private fun mapHtml(): String {
-        val isModel = photos.getOrNull(selected)?.objectType == "MODEL"
-        val olat = objectLatInput.numberOr(52.518349)
-        val olng = objectLngInput.numberOr(6.420889)
-        val polat = photoObjectLatInput.text.toString().trim().toDoubleOrNull() ?: olat
-        val polng = photoObjectLngInput.text.toString().trim().toDoubleOrNull() ?: olng
+        val current = photos.getOrNull(selected)
+        val isModel = current?.objectType == "MODEL" &&
+            current.modelUrl.trim().startsWith("https://", ignoreCase = true) &&
+            current.modelUrl.trim().substringBefore('?').endsWith(".glb", ignoreCase = true)
+        val olat = objectLatInput.text.toString().trim().toDoubleOrNull() ?: 52.518349
+        val olng = objectLngInput.text.toString().trim().toDoubleOrNull() ?: 6.420889
+        val polat = photoObjectLatInput.text.toString().trim().toDoubleOrNull() ?: 52.518349
+        val polng = photoObjectLngInput.text.toString().trim().toDoubleOrNull() ?: 6.420889
         val clat = cameraLatInput.numberOr(52.518263)
         val clng = cameraLngInput.numberOr(6.421917)
         // Als de testlocatie nog niet is ingevuld, toon de testspeld tijdelijk
@@ -1663,11 +1687,14 @@ class AdminActivity : Activity() {
         @JavascriptInterface fun onMapReady() {
             runOnUiThread {
                 mapReady = true
-                val isModel = photos.getOrNull(selected)?.objectType == "MODEL"
-                val olat = objectLatInput.numberOr(52.518349)
-                val olng = objectLngInput.numberOr(6.420889)
-                val polat = photoObjectLatInput.text.toString().trim().toDoubleOrNull() ?: olat
-                val polng = photoObjectLngInput.text.toString().trim().toDoubleOrNull() ?: olng
+                val current = photos.getOrNull(selected)
+                val isModel = current?.objectType == "MODEL" &&
+                    current.modelUrl.trim().startsWith("https://", ignoreCase = true) &&
+                    current.modelUrl.trim().substringBefore('?').endsWith(".glb", ignoreCase = true)
+                val olat = objectLatInput.text.toString().trim().toDoubleOrNull() ?: 52.518349
+                val olng = objectLngInput.text.toString().trim().toDoubleOrNull() ?: 6.420889
+                val polat = photoObjectLatInput.text.toString().trim().toDoubleOrNull() ?: 52.518349
+                val polng = photoObjectLngInput.text.toString().trim().toDoubleOrNull() ?: 6.420889
                 val clat = cameraLatInput.numberOr(52.518263)
                 val clng = cameraLngInput.numberOr(6.421917)
                 // Als de testlocatie nog niet is ingevuld, toon de testspeld tijdelijk
