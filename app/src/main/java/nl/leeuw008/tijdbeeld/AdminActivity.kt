@@ -869,24 +869,14 @@ class AdminActivity : Activity() {
         }
         p.photoObjectLat = photoObjectLatInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN
         p.photoObjectLng = photoObjectLngInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN
-        val hasGlbUrl = isValidGlbUrl(p.modelUrl)
-        val hasModelSource = hasGlbUrl || modelAssetFor(p).isNotBlank()
-        if (p.objectType == "MODEL" && hasModelSource) {
-            p.objectLat = objectLatInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN
-            p.objectLng = objectLngInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN
-        } else {
-            p.objectLat = Double.NaN
-            p.objectLng = Double.NaN
-        }
+        // Bewaar alle vier posities onafhankelijk van de geselecteerde weergave.
+        // Een verborgen veld mag nooit worden leeggemaakt bij Foto/3D-model wisselen.
+        p.objectLat = objectLatInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN
+        p.objectLng = objectLngInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN
         p.cameraLat = cameraLatInput.numberOr(p.cameraLat)
         p.cameraLng = cameraLngInput.numberOr(p.cameraLng)
-        if (p.objectType == "MODEL" && hasModelSource) {
-            p.testLat = if (::testLatInput.isInitialized) testLatInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN else Double.NaN
-            p.testLng = if (::testLngInput.isInitialized) testLngInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN else Double.NaN
-        } else {
-            p.testLat = Double.NaN
-            p.testLng = Double.NaN
-        }
+        p.testLat = if (::testLatInput.isInitialized) testLatInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN else Double.NaN
+        p.testLng = if (::testLngInput.isInitialized) testLngInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN else Double.NaN
         saveAll()
     }
 
@@ -1330,6 +1320,10 @@ class AdminActivity : Activity() {
 
     private fun selectObjectType(type: String) {
         if (updatingFields || photos.isEmpty()) return
+        // Leg eerst alle vier GPS-posities vast voordat de zichtbare velden wisselen.
+        // De Foto- en 3D-modelweergave gebruiken dezelfde recordcontext, maar hun
+        // GPS-posities blijven afzonderlijk bewaard.
+        persistCurrentForm()
         val item = photos[selected]
         val currentMedia = urlInput.text.toString().trim()
         if (item.objectType == "MODEL") {
@@ -1361,14 +1355,11 @@ class AdminActivity : Activity() {
     private fun normalizePhotoRecord(item: PhotoConfig) {
         if (item.objectType != "PHOTO") return
         // Oude catalogusversies gebruikten objectLat/objectLng voor de fotolocatie.
-        // Zet die legacy-positie één keer over naar het expliciete foto-objectveld.
+        // Zet die legacy-positie over als het expliciete foto-objectveld nog ontbreekt.
+        // Bestaande modelcoördinaten blijven intact zodat wisselen tussen Foto en
+        // 3D-model nooit GPS-posities wist.
         if (!item.photoObjectLat.isFinite() && item.objectLat.isFinite()) item.photoObjectLat = item.objectLat
         if (!item.photoObjectLng.isFinite() && item.objectLng.isFinite()) item.photoObjectLng = item.objectLng
-        // Een Foto-object heeft geen 3D-modelcentrum of model-testlocatie.
-        item.objectLat = Double.NaN
-        item.objectLng = Double.NaN
-        item.testLat = Double.NaN
-        item.testLng = Double.NaN
     }
 
     private fun updateTypeFields() {
@@ -1377,14 +1368,8 @@ class AdminActivity : Activity() {
         val isModel = item.objectType == "MODEL"
         val hasGlbUrl = isValidGlbUrl(item.modelUrl)
         val hasModelSource = hasModelSource(item)
-        if (!isModel || !hasModelSource) {
-            updatingFields = true
-            objectLatInput.setText("")
-            objectLngInput.setText("")
-            testLatInput.setText("")
-            testLngInput.setText("")
-            updatingFields = false
-        }
+        // Verberg inactieve velden, maar wis hun inhoud niet: de vier GPS-posities
+        // moeten behouden blijven wanneer de gebruiker van Foto naar 3D-model wisselt.
         styleObjectTypeButton(objectTypePhotoButton, !isModel)
         styleObjectTypeButton(objectTypeModelButton, isModel && hasModelSource, unavailable = !hasModelSource)
         cameraFieldsContainer.visibility = if (isModel) View.GONE else View.VISIBLE
