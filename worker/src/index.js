@@ -120,6 +120,7 @@ function catalogValidationError(value) {
 
 function validCatalog(value) {
   return catalogValidationError(value) === null;
+}
 
 async function getSession(request, env) {
   const authorization = request.headers.get("Authorization") || "";
