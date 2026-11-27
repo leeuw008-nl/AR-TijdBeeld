@@ -11,6 +11,7 @@ import android.opengl.Matrix
 import com.google.ar.core.Anchor
 import com.google.ar.core.Earth
 import com.google.ar.core.Session
+import com.google.ar.core.Pose
 import com.google.ar.core.TrackingState
 import org.json.JSONObject
 import java.nio.ByteBuffer
@@ -21,7 +22,7 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
 /** Minimal GLB 2.0 triangle renderer. Geometry is kept in model metres. */
-class OmmerschansModelRenderer(private val context: Context, private val status: (String) -> Unit, private val standaloneMode: Boolean = false) : GLSurfaceView.Renderer {
+class OmmerschansModelRenderer(private val context: Context, private val status: (String) -> Unit, private val standaloneMode: Boolean = false, private val modelUrl: String? = null, private val modelAsset: String = "ommerschans.glb", private val standaloneModelScaleMultiplier: Float = 1f) : GLSurfaceView.Renderer {
     @Volatile private var session: Session? = null
     @Volatile private var lastStatus = ""
     @Volatile private var modelData: List<Part>? = null
@@ -29,11 +30,25 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     private val glModelTextures = mutableMapOf<Int, Int>()
     @Volatile private var loadStarted = false
     @Volatile private var anchor: Anchor? = null
+    @Volatile private var testAnchor: Anchor? = null
+    @Volatile private var freeAnchor: Anchor? = null
+    @Volatile private var freePlacementMode = false
+    @Volatile private var freePlacementDistanceMeters = 10f
     @Volatile private var targetLatitude = 52.58737559898257
     @Volatile private var targetLongitude = 6.391727308884152
+    @Volatile private var objectLatitude = 52.58737559898257
+    @Volatile private var objectLongitude = 6.391727308884152
+    @Volatile private var testLatitude = Double.NaN
+    @Volatile private var testLongitude = Double.NaN
+    @Volatile private var hasTestTarget = false
+    @Volatile private var maxHorizontalAccuracyMeters = 5.0
+    @Volatile private var maxHeadingAccuracyDegrees = 15.0
+    @Volatile private var targetChosen = false
     private var anchorRequested = false
+    private var testAnchorRequested = false
     private var standaloneTransformReady = false
     private val standaloneModel = FloatArray(16)
+    private val modelOrientation180 = FloatArray(16)
     private val standaloneRotation = FloatArray(16)
     private val standaloneRotatedModel = FloatArray(16)
     private val standaloneTranslation = FloatArray(16)
@@ -42,6 +57,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
     @Volatile private var standaloneRotationX = 13.5f
     @Volatile private var standaloneRotationY = 0f
     @Volatile private var standaloneCameraDistance = 7.5f
+    @Volatile private var standaloneAutoFitDistance = 7.5f
+    @Volatile private var standaloneFitReady = false
     @Volatile private var standaloneZoomSensitivity = 1.0f
     @Volatile private var standalonePivotXPercent = 50
     @Volatile private var standalonePivotYPercent = 50
@@ -79,6 +96,31 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         if (message != lastStatus) { lastStatus = message; status(message) }
     }
 
+    fun setFreePlacementMode(enabled: Boolean) {
+        if (freePlacementMode == enabled) return
+        freePlacementMode = enabled
+        freeAnchor?.detach()
+        freeAnchor = null
+        report(if (enabled) "Vrije locatie geselecteerd; model wordt vóór je geplaatst…" else "Test locatie geselecteerd; geografische plaatsing wordt gebruikt…")
+    }
+
+    fun setFreePlacementDistance(distanceMeters: Float) {
+        if (!distanceMeters.isFinite()) return
+        val next = distanceMeters.coerceIn(2f, 250f)
+        if (kotlin.math.abs(next - freePlacementDistanceMeters) < 0.01f) return
+        freePlacementDistanceMeters = next
+        if (freePlacementMode) {
+            freeAnchor?.detach()
+            freeAnchor = null
+            report("Afstand ingesteld op ${next.toInt()} meter; vrije plaatsing wordt bijgewerkt…")
+        }
+    }
+
+    fun setGeospatialAccuracyThresholds(horizontalMeters: Double, headingDegrees: Double) {
+        if (horizontalMeters.isFinite()) maxHorizontalAccuracyMeters = horizontalMeters.coerceIn(1.0, 30.0)
+        if (headingDegrees.isFinite()) maxHeadingAccuracyDegrees = headingDegrees.coerceIn(1.0, 45.0)
+    }
+
     fun setSession(value: Session) {
         session = value
         textureSession = null
@@ -87,6 +129,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         GLES20.glClearColor(0f,0f,0f,1f)
+        Matrix.setRotateM(modelOrientation180, 0, 180f, 0f, 1f, 0f)
         cameraProgram = program(CAMERA_VS, CAMERA_FS)
         cameraPos = GLES20.glGetAttribLocation(cameraProgram, "aPos")
         cameraUv = GLES20.glGetAttribLocation(cameraProgram, "aUv")
@@ -155,7 +198,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         standaloneOffsetY = 0f
         standaloneRotationX = 13.5f
         standaloneRotationY = 0f
-        standaloneCameraDistance = 7.5f
+        standaloneCameraDistance = standaloneAutoFitDistance
     }
 
     fun zoomStandalone(factor: Float) {
@@ -167,16 +210,42 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
 
 
     fun setGeoTarget(latitude: Double, longitude: Double) {
-        if (latitude.isFinite() && longitude.isFinite() && latitude in -90.0..90.0 && longitude in -180.0..180.0) {
-            targetLatitude = latitude
-            targetLongitude = longitude
-            anchor = null
-            anchorRequested = false
-        }
+        setGeoTargets(latitude, longitude, Double.NaN, Double.NaN)
+    }
+
+    fun setGeoTargets(objectLat: Double, objectLng: Double, testLat: Double, testLng: Double) {
+        if (!objectLat.isFinite() || !objectLng.isFinite() ||
+            objectLat !in -90.0..90.0 || objectLng !in -180.0..180.0) return
+        objectLatitude = objectLat
+        objectLongitude = objectLng
+        hasTestTarget = testLat.isFinite() && testLng.isFinite() &&
+            testLat in -90.0..90.0 && testLng in -180.0..180.0
+        testLatitude = testLat
+        testLongitude = testLng
+        targetLatitude = objectLat
+        targetLongitude = objectLng
+        targetChosen = false
+        anchor?.detach()
+        testAnchor?.detach()
+        anchor = null
+        testAnchor = null
+        anchorRequested = false
+        testAnchorRequested = false
+    }
+
+    private fun distanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val earthRadius = 6371000.0
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = kotlin.math.sin(dLat / 2.0) * kotlin.math.sin(dLat / 2.0) +
+            kotlin.math.cos(Math.toRadians(lat1)) * kotlin.math.cos(Math.toRadians(lat2)) *
+            kotlin.math.sin(dLon / 2.0) * kotlin.math.sin(dLon / 2.0)
+        return 2.0 * earthRadius * kotlin.math.asin(kotlin.math.sqrt(a.coerceIn(0.0, 1.0)))
     }
 
     override fun onSurfaceChanged(gl: GL10?, w: Int, h: Int) {
         width = w; height = h
+        if (standaloneMode) standaloneFitReady = false
         GLES20.glViewport(0,0,w,h)
         geometryChanged = true
     }
@@ -213,49 +282,124 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             GLES20.glDisableVertexAttribArray(cameraPos); GLES20.glDisableVertexAttribArray(cameraUv)
 
             val earth = s.earth
+            val parts = modelData
+
+            // Vrije locatie gebruikt een lokaal ARCore-anker vóór de camera.
+            // De geografische heading lijnt het model uit met het ware noorden;
+            // een nauwkeurige GPS-positie is voor deze stand niet vereist.
+            if (freePlacementMode) {
+                var free = freeAnchor
+                if (free == null) {
+                    if (earth == null || earth.earthState != Earth.EarthState.ENABLED ||
+                        earth.trackingState != TrackingState.TRACKING) {
+                        report("Vrije locatie: ARCore wacht op geografische kompasrichting…")
+                        return
+                    }
+                    val geoPose = earth.cameraGeospatialPose
+                    val cameraPose = frame.camera.pose
+                    val forward = cameraPose.rotateVector(floatArrayOf(0f, 0f, -1f))
+                    val horizontalLength = kotlin.math.sqrt(forward[0] * forward[0] + forward[2] * forward[2])
+                    if (horizontalLength < 0.001f || !geoPose.heading.isFinite()) {
+                        report("Vrije locatie: kompasrichting nog niet beschikbaar…")
+                        return
+                    }
+                    val cameraYaw = kotlin.math.atan2(-forward[0], -forward[2])
+                    val northAlignedYaw = cameraYaw - Math.toRadians(geoPose.heading)
+                    val halfYaw = (northAlignedYaw / 2.0).toFloat()
+                    val rotation = floatArrayOf(0f, kotlin.math.sin(halfYaw), 0f, kotlin.math.cos(halfYaw))
+                    val cameraPosition = cameraPose.translation
+                    val distance = freePlacementDistanceMeters
+                    val position = floatArrayOf(
+                        cameraPosition[0] + forward[0] / horizontalLength * distance,
+                        cameraPosition[1] - 1.4f,
+                        cameraPosition[2] + forward[2] / horizontalLength * distance
+                    )
+                    free = s.createAnchor(Pose(position, rotation))
+                    freeAnchor = free
+                    report("Vrije locatie geplaatst op ${distance.toInt()} m; noordoriëntatie uit ARCore-kompas (${geoPose.headingAccuracy.toInt()}° nauwkeurig).")
+                }
+                if (free.trackingState == TrackingState.TRACKING && parts != null) {
+                    frame.camera.getViewMatrix(view, 0)
+                    frame.camera.getProjectionMatrix(projection, 0, 0.1f, 1000f)
+                    free.pose.toMatrix(model, 0)
+                    Matrix.multiplyMM(standaloneRotatedModel, 0, model, 0, modelOrientation180, 0)
+                    Matrix.multiplyMM(mv, 0, view, 0, standaloneRotatedModel, 0)
+                    Matrix.multiplyMM(mvp, 0, projection, 0, mv, 0)
+                    GLES20.glEnable(GLES20.GL_DEPTH_TEST)
+                    GLES20.glEnable(GLES20.GL_CULL_FACE)
+                    GLES20.glUseProgram(modelProgram)
+                    GLES20.glUniformMatrix4fv(modelMvp, 1, false, mvp, 0)
+                    drawModelParts(parts)
+                    GLES20.glDisable(GLES20.GL_CULL_FACE)
+                }
+                return
+            }
+
             if (earth == null || earth.earthState != Earth.EarthState.ENABLED ||
                 earth.trackingState != TrackingState.TRACKING) {
                 report("ARCore zoekt GPS-, kompas- en Geospatial-tracking…")
                 return
             }
             val pose = earth.cameraGeospatialPose
-            if (pose.horizontalAccuracy > 10.0 || pose.headingAccuracy > 15.0) {
-                report("Wacht op nauwkeurige locatie. GPS-afwijking: ${pose.horizontalAccuracy.toInt()} m.")
+            // Alleen bij de eerste geografische plaatsing eisen we nauwkeurigheid.
+            // Een reeds geplaatst model blijft zichtbaar bij tijdelijke meetruis.
+            if (!targetChosen && (pose.horizontalAccuracy > maxHorizontalAccuracyMeters ||
+                pose.headingAccuracy > maxHeadingAccuracyDegrees)) {
+                report("Wacht op nauwkeurige locatie. GPS: ${pose.horizontalAccuracy.toInt()} m (max ${maxHorizontalAccuracyMeters.toInt()} m); kompas: ${pose.headingAccuracy.toInt()}° (max ${maxHeadingAccuracyDegrees.toInt()}°).")
                 return
             }
+            if (!targetChosen) {
+                targetChosen = true
+                report("Locatie en kompas zijn nauwkeurig genoeg. Het 3D-model wordt op beide ingestelde locaties geplaatst…")
+            }
+            // Resolve both geographic locations independently. The same parsed model
+            // data is rendered at each anchor; proximity never selects one over the other.
             if (!anchorRequested && anchor == null) {
                 anchorRequested = true
-                report("Locatie gevonden. Het 3D-model wordt op de bouwlocatie geplaatst…")
-                // GLB origin: courtyard centre at the coordinates supplied by the selected photo.
-                // Axes in the delivered model are +X east, +Y up and -Z true north.
-                // ARCore Geospatial uses east/up/south, so identity rotation aligns the axes;
-                // the building's 4.4-degree orientation is already present in the model geometry.
                 earth.resolveAnchorOnTerrainAsync(
-                    targetLatitude, targetLongitude, 0.0,
+                    objectLatitude, objectLongitude, 0.0,
                     0f, 0f, 0f, 1f
                 ) { resolved, state ->
                     if (state == Anchor.TerrainAnchorState.SUCCESS && resolved != null) {
                         anchor = resolved
-                        report("3D-model geplaatst; schaal en oriëntatie moeten ter plaatse worden gecontroleerd.")
+                        report("3D-model op de objectlocatie geplaatst.")
                     } else {
                         anchorRequested = false
-                        report("Plaatsen van het 3D-model is mislukt: $state")
+                        report("Plaatsen op de objectlocatie is mislukt: $state")
                     }
                 }
             }
-            val a = anchor
-            val parts = modelData
-            if (a == null || a.trackingState != TrackingState.TRACKING || parts == null) return
+            if (hasTestTarget && !testAnchorRequested && testAnchor == null) {
+                testAnchorRequested = true
+                earth.resolveAnchorOnTerrainAsync(
+                    testLatitude, testLongitude, 0.0,
+                    0f, 0f, 0f, 1f
+                ) { resolved, state ->
+                    if (state == Anchor.TerrainAnchorState.SUCCESS && resolved != null) {
+                        testAnchor = resolved
+                        report("3D-model ook op de testlocatie geplaatst.")
+                    } else {
+                        testAnchorRequested = false
+                        report("Plaatsen op de testlocatie is mislukt: $state")
+                    }
+                }
+            }
+            val activeAnchors = listOfNotNull(anchor, testAnchor)
+                .filter { it.trackingState == TrackingState.TRACKING }
+            if (activeAnchors.isEmpty() || parts == null) return
             frame.camera.getViewMatrix(view,0)
             frame.camera.getProjectionMatrix(projection,0,0.1f,1000f)
-            a.pose.toMatrix(model,0)
-            Matrix.multiplyMM(mv,0,view,0,model,0)
-            Matrix.multiplyMM(mvp,0,projection,0,mv,0)
             GLES20.glEnable(GLES20.GL_DEPTH_TEST)
             GLES20.glEnable(GLES20.GL_CULL_FACE)
             GLES20.glUseProgram(modelProgram)
-            GLES20.glUniformMatrix4fv(modelMvp,1,false,mvp,0)
-            drawModelParts(parts)
+            for (activeAnchor in activeAnchors) {
+                activeAnchor.pose.toMatrix(model,0)
+                Matrix.multiplyMM(standaloneRotatedModel,0,model,0,modelOrientation180,0)
+                Matrix.multiplyMM(mv,0,view,0,standaloneRotatedModel,0)
+                Matrix.multiplyMM(mvp,0,projection,0,mv,0)
+                GLES20.glUniformMatrix4fv(modelMvp,1,false,mvp,0)
+                drawModelParts(parts)
+            }
             GLES20.glDisable(GLES20.GL_CULL_FACE)
         } catch (e: Exception) {
             report("3D-camera fout: ${e.message ?: e.javaClass.simpleName}")
@@ -285,7 +429,7 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
                 }
             }
             val extent = maxOf(maxX - minX, maxY - minY, maxZ - minZ).coerceAtLeast(0.001f)
-            val scale = 2.8f / extent
+            val scale = (2.8f * standaloneModelScaleMultiplier.coerceIn(1f, 2f)) / extent
             Matrix.setIdentityM(standaloneModel, 0)
             Matrix.scaleM(standaloneModel, 0, scale, scale, scale)
             // 50% on all axes keeps the original bounding-box centre as pivot.
@@ -294,9 +438,55 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
             val pivotZ = minZ + (maxZ - minZ) * (standalonePivotZPercent / 100f)
             Matrix.translateM(standaloneModel, 0, -pivotX, -pivotY, -pivotZ)
             standaloneTransformReady = true
+            standaloneFitReady = false
             report("3D-model geladen — vrij bekijken")
         }
         val aspect = width.toFloat() / height.coerceAtLeast(1).toFloat()
+        if (!standaloneFitReady && width > 0 && height > 0) {
+            // Recalculate bounds in this scope; the initial transform's bounds are local
+            // to its setup block and must not be referenced here.
+            var fitMinX = Float.POSITIVE_INFINITY; var fitMinY = Float.POSITIVE_INFINITY; var fitMinZ = Float.POSITIVE_INFINITY
+            var fitMaxX = Float.NEGATIVE_INFINITY; var fitMaxY = Float.NEGATIVE_INFINITY; var fitMaxZ = Float.NEGATIVE_INFINITY
+            for (part in parts) {
+                val vertices = part.vertices
+                var i = 0
+                while (i + 2 < vertices.limit()) {
+                    val x = vertices.get(i); val y = vertices.get(i + 1); val z = vertices.get(i + 2)
+                    fitMinX = minOf(fitMinX, x); fitMinY = minOf(fitMinY, y); fitMinZ = minOf(fitMinZ, z)
+                    fitMaxX = maxOf(fitMaxX, x); fitMaxY = maxOf(fitMaxY, y); fitMaxZ = maxOf(fitMaxZ, z)
+                    i += 3
+                }
+            }
+            // Use exactly the same model scale and pivot as the rendered preview.
+            val fitExtent = maxOf(fitMaxX - fitMinX, fitMaxY - fitMinY, fitMaxZ - fitMinZ).coerceAtLeast(0.001f)
+            val scale = (2.8f * standaloneModelScaleMultiplier.coerceIn(1f, 2f)) / fitExtent
+            val pivotX = fitMinX + (fitMaxX - fitMinX) * (standalonePivotXPercent / 100f)
+            val pivotY = fitMinY + (fitMaxY - fitMinY) * (standalonePivotYPercent / 100f)
+            val pivotZ = fitMinZ + (fitMaxZ - fitMinZ) * (standalonePivotZPercent / 100f)
+            val pitch = Math.toRadians(standaloneRotationX.toDouble())
+            val cp = kotlin.math.cos(pitch).toFloat()
+            val sp = kotlin.math.sin(pitch).toFloat()
+            var halfWidth = 0f
+            var halfHeight = 0f
+            var maxDepth = 0f
+            for (x in floatArrayOf(fitMinX, fitMaxX)) for (y in floatArrayOf(fitMinY, fitMaxY)) for (z in floatArrayOf(fitMinZ, fitMaxZ)) {
+                val px = (x - pivotX) * scale
+                val py = (y - pivotY) * scale
+                val pz = (z - pivotZ) * scale
+                val rotatedY = py * cp - pz * sp
+                val rotatedZ = py * sp + pz * cp
+                halfWidth = maxOf(halfWidth, kotlin.math.abs(px))
+                halfHeight = maxOf(halfHeight, kotlin.math.abs(rotatedY))
+                maxDepth = maxOf(maxDepth, rotatedZ)
+            }
+            val verticalTan = kotlin.math.tan(Math.toRadians(22.5)).toFloat()
+            val horizontalTan = (verticalTan * aspect.coerceAtLeast(0.1f)).coerceAtLeast(0.01f)
+            val fitDistance = maxOf(halfWidth / horizontalTan, halfHeight / verticalTan) / 0.92f +
+                maxDepth.coerceAtLeast(0f)
+            standaloneAutoFitDistance = fitDistance.coerceIn(0.65f, 24f)
+            standaloneCameraDistance = standaloneAutoFitDistance
+            standaloneFitReady = true
+        }
         Matrix.perspectiveM(projection, 0, 45f, aspect.coerceAtLeast(0.1f), 0.1f, 100f)
         val yaw = Math.toRadians(standaloneRotationY.toDouble())
         val pitch = Math.toRadians(standaloneRotationX.toDouble())
@@ -307,7 +497,8 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         Matrix.setLookAtM(view, 0, eyeX, eyeY, eyeZ, 0f, 0f, 0f, 0f, 1f, 0f)
         Matrix.setIdentityM(standaloneTranslation, 0)
         Matrix.translateM(standaloneTranslation, 0, standaloneOffsetX, standaloneOffsetY, 0f)
-        Matrix.multiplyMM(standaloneRotatedModel, 0, standaloneTranslation, 0, standaloneModel, 0)
+        Matrix.multiplyMM(model, 0, modelOrientation180, 0, standaloneModel, 0)
+        Matrix.multiplyMM(standaloneRotatedModel, 0, standaloneTranslation, 0, model, 0)
         Matrix.multiplyMM(mv, 0, view, 0, standaloneRotatedModel, 0)
         Matrix.multiplyMM(mvp, 0, projection, 0, mv, 0)
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
@@ -399,8 +590,12 @@ class OmmerschansModelRenderer(private val context: Context, private val status:
         loadStarted = true
         Thread {
             try {
-                report("Lokaal 3D-modelbestand wordt geladen…")
-                val bytes = context.assets.open("ommerschans.glb").use { it.readBytes() }
+                report(if (modelUrl.isNullOrBlank()) "Lokaal 3D-modelbestand wordt geladen…" else "3D-model wordt opgehaald…")
+                val bytes = if (!modelUrl.isNullOrBlank()) {
+                    val connection = java.net.URL(modelUrl).openConnection().apply { connectTimeout = 12000; readTimeout = 30000 }
+                    connection.getInputStream().use { it.readBytes() }
+                } else context.assets.open(modelAsset).use { it.readBytes() }
+                require(bytes.size <= 80 * 1024 * 1024) { "3D-model is groter dan 80 MB" }
                 val parsed = parseGlb(bytes)
                 modelData = parsed
                 report("3D-model geladen: ${parsed.size} onderdelen")

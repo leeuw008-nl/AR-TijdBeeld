@@ -26,7 +26,10 @@ private data class HomePhoto(
     val title: String,
     val imageUrl: String,
     val objectLat: Double,
-    val objectLng: Double
+    val objectLng: Double,
+    val photoObjectLat: Double,
+    val photoObjectLng: Double,
+    val objectType: String
 )
 
 class StartActivity : Activity() {
@@ -132,12 +135,12 @@ class StartActivity : Activity() {
         }, LinearLayout.LayoutParams(0, -2, 1f))
         header.addView(TextView(this).apply {
             val installedVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: "onbekend"
-            text = "v$installedVersion"
+            text = "v$installedVersion · #${BuildConfig.BUILD_NUMBER}"
             textSize = 13f
             setTextColor(Color.WHITE)
             alpha = 0.9f
             gravity = Gravity.CENTER_VERTICAL or Gravity.END
-            contentDescription = "App-versie $installedVersion"
+            contentDescription = "App-versie $installedVersion, build ${BuildConfig.BUILD_NUMBER}"
         }, LinearLayout.LayoutParams(-2, -2))
 
         root.addView(header)
@@ -156,11 +159,11 @@ class StartActivity : Activity() {
         })
 
         val photoCard = card()
-        photoCard.addView(sectionTitle("1. Foto-overzicht"))
+        photoCard.addView(sectionTitle("1. Object-overzicht"))
         featuredImage = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             setBackgroundColor(Color.rgb(224, 231, 237))
-            contentDescription = "Geselecteerde historische foto"
+            contentDescription = "Geselecteerd object"
         }
         photoCard.addView(featuredImage, LinearLayout.LayoutParams(-1, dp(170)))
         featuredTitle = TextView(this).apply {
@@ -225,15 +228,15 @@ class StartActivity : Activity() {
             // publiceren mogelijk is: eerst veilig aanmelden bij de centrale catalogus.
             if (adminSessionActive) {
                 val beheerMenu = menu.addSubMenu("Beheer")
-                beheerMenu.add("Foto toevoegen").setOnMenuItemClickListener {
+                beheerMenu.add("Object toevoegen").setOnMenuItemClickListener {
                     openAdminSection("add", false)
                     true
                 }
-                beheerMenu.add("Foto wijzigen").setOnMenuItemClickListener {
+                beheerMenu.add("Object wijzigen").setOnMenuItemClickListener {
                     openAdminSection("edit", false)
                     true
                 }
-                beheerMenu.add("Foto startpagina").setOnMenuItemClickListener {
+                beheerMenu.add("Startpagina-object").setOnMenuItemClickListener {
                     openAdminSection("home", false)
                     true
                 }
@@ -359,7 +362,10 @@ class StartActivity : Activity() {
                     item.optString("title"),
                     item.optString("imageUrl"),
                     item.optDouble("objectLat"),
-                    item.optDouble("objectLng")
+                    item.optDouble("objectLng"),
+                    item.optDouble("photoObjectLat", item.optDouble("objectLat")),
+                    item.optDouble("photoObjectLng", item.optDouble("objectLng")),
+                    item.optString("objectType", "PHOTO")
                 ))
             }
             // Een lokale keuze uit de proefapp heeft voorrang op een oudere servercache.
@@ -376,7 +382,10 @@ class StartActivity : Activity() {
                                 item.optString("title"),
                                 item.optString("imageUrl"),
                                 item.optDouble("objectLat"),
-                                item.optDouble("objectLng")
+                                item.optDouble("objectLng"),
+                                item.optDouble("photoObjectLat", item.optDouble("objectLat")),
+                                item.optDouble("photoObjectLng", item.optDouble("objectLng")),
+                                item.optString("objectType", "PHOTO")
                             )
                             loaded.removeAll { it.id == localFeaturedId }
                             loaded.add(localPhoto)
@@ -405,7 +414,10 @@ class StartActivity : Activity() {
                 if (imageUrl.isBlank()) continue
                 local.add(HomePhoto(
                     item.optString("id"), item.optString("title"), imageUrl,
-                    item.optDouble("objectLat"), item.optDouble("objectLng")
+                    item.optDouble("objectLat"), item.optDouble("objectLng"),
+                    item.optDouble("photoObjectLat", item.optDouble("objectLat")),
+                    item.optDouble("photoObjectLng", item.optDouble("objectLng")),
+                    item.optString("objectType", "PHOTO")
                 ))
             }
             photos = local
@@ -428,21 +440,22 @@ class StartActivity : Activity() {
                 if (bitmap != null) runOnUiThread { featuredImage.setImageBitmap(bitmap) }
             } catch (_: Exception) { }
         }.start()
-        val photoMarkers = photos.joinToString(",") { "[${it.objectLat},${it.objectLng}]" }
-        // Vast modelanker van Ommerschans; staat los van de fotocatalogus.
-        val modelMarkers = "[[52.587396655,6.391726895]]"
+        val photoMarkers = photos.joinToString(",") {
+            val lat = if (it.objectType.equals("MODEL", ignoreCase = true)) it.objectLat else it.photoObjectLat
+            val lng = if (it.objectType.equals("MODEL", ignoreCase = true)) it.objectLng else it.photoObjectLng
+            "[$lat,$lng]"
+        }
         val html = """
             <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
             <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
             <style>html,body,#map{height:100%;margin:0} .leaflet-control-attribution{font-size:8px}</style>
             <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script></head>
             <body><div id="map"></div><script>
-            const photoPoints=[$photoMarkers]; const modelPoints=$modelMarkers;
-            const points=photoPoints.concat(modelPoints);
+            const photoPoints=[$photoMarkers];
+            const points=photoPoints;
             const map=L.map('map',{zoomControl:false,scrollWheelZoom:false,dragging:false, doubleClickZoom:false, touchZoom:false});
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
             photoPoints.forEach(p=>L.circleMarker(p,{radius:5,color:'#1769aa',fillColor:'#1769aa',fillOpacity:1}).addTo(map));
-            modelPoints.forEach(p=>L.circleMarker(p,{radius:7,color:'#d33b32',fillColor:'#d33b32',fillOpacity:1}).addTo(map));
             if(points.length===1){map.setView(points[0],16)}else{map.fitBounds(points,{padding:[18,18],maxZoom:15})}
             </script></body></html>
         """.trimIndent()

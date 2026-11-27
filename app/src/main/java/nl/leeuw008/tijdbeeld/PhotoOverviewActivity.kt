@@ -26,9 +26,17 @@ private data class CatalogPhoto(
     val imageUrl: String,
     val objectLat: Double,
     val objectLng: Double,
+    val photoObjectLat: Double,
+    val photoObjectLng: Double,
     val cameraLat: Double,
     val cameraLng: Double,
-    val imageWidthMeters: Float
+    val imageWidthMeters: Float,
+    val objectType: String = "PHOTO",
+    val modelUrl: String = "",
+    val modelAsset: String = "",
+    val testLat: Double = Double.NaN,
+    val testLng: Double = Double.NaN,
+    val displayLocation: String = "OBJECT"
 )
 
 class PhotoOverviewActivity : Activity() {
@@ -127,16 +135,23 @@ class PhotoOverviewActivity : Activity() {
                 for (i in 0 until array.length()) {
                     val item = array.getJSONObject(i)
                     val title = item.optString("title").trim()
+                    val objectType = item.optString("type", "PHOTO").uppercase(Locale.ROOT)
                     val imageUrl = item.optString("imageUrl").trim()
+                    val modelUrl = item.optString("modelUrl").trim()
+                    val modelAsset = item.optString("modelAsset").trim()
                     val lat = item.optDouble("objectLat", Double.NaN)
                     val lng = item.optDouble("objectLng", Double.NaN)
-                    if (title.isBlank() || imageUrl.isBlank() || !lat.isFinite() || !lng.isFinite()) continue
+                    if (title.isBlank() || !lat.isFinite() || !lng.isFinite()) continue
+                    if (objectType == "MODEL" && modelUrl.isBlank() && modelAsset.isBlank()) continue
+                    if (objectType != "MODEL" && imageUrl.isBlank()) continue
                     loaded.add(CatalogPhoto(
-                        item.optString("id", "photo-$i"),
-                        title, imageUrl, lat, lng,
-                        item.optDouble("cameraLat", lat),
-                        item.optDouble("cameraLng", lng),
-                        item.optDouble("imageWidthMeters", 3.0).toFloat().coerceIn(1f, 12f)
+                        item.optString("id", "object-$i"), title, imageUrl, lat, lng,
+                        item.optDouble("photoObjectLat", lat), item.optDouble("photoObjectLng", lng),
+                        item.optDouble("cameraLat", lat), item.optDouble("cameraLng", lng),
+                        item.optDouble("imageWidthMeters", 3.0).toFloat().coerceIn(1f, 12f),
+                        objectType, modelUrl, modelAsset,
+                        item.optDouble("testLat", Double.NaN), item.optDouble("testLng", Double.NaN),
+                        item.optString("displayLocation", "OBJECT")
                     ))
                 }
                 if (loaded.isEmpty()) throw IllegalStateException("Geen geldige gepubliceerde foto's gevonden")
@@ -201,17 +216,16 @@ class PhotoOverviewActivity : Activity() {
     private fun renderPhotos() {
         content.removeAllViews()
         val origin = currentLocation
-        val ommerschans = photos.filter { it.title.trim() == OMMERSCHANS_PHOTO_TITLE }
-        val otherPhotos = photos.filterNot { it.title.trim() == OMMERSCHANS_PHOTO_TITLE }
-        val sortedOthers = if (origin != null) {
-            otherPhotos.sortedBy { photo ->
+        // Sorteer alle objecten op hun eigen objectlocatie; geen object krijgt een vaste plek onderaan.
+        val sorted = if (origin != null) {
+            photos.sortedBy { photo ->
                 val result = FloatArray(1)
-                Location.distanceBetween(origin.latitude, origin.longitude, photo.objectLat, photo.objectLng, result)
+                val targetLat = if (photo.objectType == "MODEL") photo.objectLat else photo.photoObjectLat
+                val targetLng = if (photo.objectType == "MODEL") photo.objectLng else photo.photoObjectLng
+                Location.distanceBetween(origin.latitude, origin.longitude, targetLat, targetLng, result)
                 result[0]
             }
-        } else otherPhotos.sortedBy { it.title.lowercase(Locale.ROOT) }
-        // De Ommerschans is de verste locatie in de huidige fotoselectie: altijd als laatste tonen.
-        val sorted = sortedOthers + ommerschans
+        } else photos.sortedBy { it.title.lowercase(Locale.ROOT) }
 
         if (origin == null) {
             addMessage("Locatie niet beschikbaar. Geef locatietoestemming om de foto's op afstand te sorteren.")
@@ -219,7 +233,9 @@ class PhotoOverviewActivity : Activity() {
         sorted.forEach { photo ->
             val distanceLabel = origin?.let {
                 val result = FloatArray(1)
-                Location.distanceBetween(it.latitude, it.longitude, photo.objectLat, photo.objectLng, result)
+                val targetLat = if (photo.objectType == "MODEL") photo.objectLat else photo.photoObjectLat
+                val targetLng = if (photo.objectType == "MODEL") photo.objectLng else photo.photoObjectLng
+                Location.distanceBetween(it.latitude, it.longitude, targetLat, targetLng, result)
                 formatDistance(result[0])
             } ?: "Afstand onbekend"
             val item = LinearLayout(this).apply {
@@ -238,6 +254,12 @@ class PhotoOverviewActivity : Activity() {
                 contentDescription = photo.title
             }
             item.addView(image)
+            if (photo.objectType == "MODEL") item.addView(TextView(this).apply {
+                text = "3D-model"
+                textSize = 12f
+                setTextColor(0xFF1769AA.toInt())
+                setPadding(dp(2), dp(5), dp(2), 0)
+            })
             item.addView(TextView(this).apply {
                 text = photo.title
                 textSize = 13f
@@ -251,7 +273,10 @@ class PhotoOverviewActivity : Activity() {
                 setTextColor(0xFF657585.toInt())
                 setPadding(dp(2), dp(2), dp(2), 0)
             })
-            loadThumbnail(photo.imageUrl, image)
+            if (photo.objectType == "MODEL") {
+                image.setImageDrawable(null)
+                image.setBackgroundColor(0xFFDCE7F0.toInt())
+            } else loadThumbnail(photo.imageUrl, image)
             content.addView(item, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = dp(12)
             })
@@ -279,21 +304,25 @@ class PhotoOverviewActivity : Activity() {
     }
 
     private fun openPhoto(photo: CatalogPhoto) {
-        if (photo.title.trim() == OMMERSCHANS_PHOTO_TITLE) {
+        if (photo.objectType == "MODEL" || photo.title.trim() == OMMERSCHANS_PHOTO_TITLE) {
             startActivity(Intent(this, ModelArActivity::class.java).apply {
                 putExtra("photoId", photo.id)
                 putExtra("photoTitle", photo.title)
                 putExtra("photoImageUrl", photo.imageUrl)
-                putExtra("photoObjectLat", photo.objectLat)
-                putExtra("photoObjectLng", photo.objectLng)
+                putExtra("modelUrl", photo.modelUrl)
+                putExtra("modelAsset", photo.modelAsset)
+                putExtra("objectLat", photo.objectLat)
+                putExtra("objectLng", photo.objectLng)
+                putExtra("testLat", photo.testLat)
+                putExtra("testLng", photo.testLng)
             })
             return
         }
         startActivity(Intent(this, MainActivity::class.java).apply {
             putExtra("title", photo.title)
             putExtra("imageUrl", photo.imageUrl)
-            putExtra("objectLat", photo.objectLat)
-            putExtra("objectLng", photo.objectLng)
+            putExtra("objectLat", photo.photoObjectLat)
+            putExtra("objectLng", photo.photoObjectLng)
             putExtra("cameraLat", photo.cameraLat)
             putExtra("cameraLng", photo.cameraLng)
             putExtra("imageWidthMeters", photo.imageWidthMeters)
