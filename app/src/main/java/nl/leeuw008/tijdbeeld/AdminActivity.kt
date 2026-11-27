@@ -72,6 +72,7 @@ class AdminActivity : Activity() {
     private lateinit var cameraFieldsContainer: LinearLayout
     private lateinit var testFieldsContainer: LinearLayout
     private lateinit var photoObjectFieldsContainer: LinearLayout
+    private lateinit var modelObjectFieldsContainer: LinearLayout
     private lateinit var map: WebView
     private var adminScreenView: View? = null
     private var mapScreenActive = false
@@ -510,28 +511,33 @@ class AdminActivity : Activity() {
             }
             modelPhotoUrlInput = addField(formPanel, "URL van de bijbehorende foto (verplicht bij 3D-model)", "https://…")
 
-            addSection(formPanel, "Locatie van het object")
-            val objectCoordinates = coordinateRow(formPanel, "Breedtegraad (latitude)", "52.518349", "Lengtegraad (longitude)", "6.420889")
-            objectLatInput = objectCoordinates.first
-            objectLngInput = objectCoordinates.second
-            photoObjectFieldsContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            addSection(photoObjectFieldsContainer, "Locatie van het gefotografeerde object")
-            val photoObjectCoordinates = coordinateRow(photoObjectFieldsContainer, "Breedtegraad (latitude)", "52.518349", "Lengtegraad (longitude)", "6.420889")
-            photoObjectLatInput = photoObjectCoordinates.first
-            photoObjectLngInput = photoObjectCoordinates.second
-            formPanel.addView(photoObjectFieldsContainer)
+            // Foto en 3D-model zijn zelfstandige objecten met ieder hun eigen twee GPS-posities.
             cameraFieldsContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            addSection(cameraFieldsContainer, "Locatie waar de foto is gemaakt")
+            addSection(cameraFieldsContainer, "1. Locatie fotograaf (waar de foto is gemaakt)")
             val cameraCoordinates = coordinateRow(cameraFieldsContainer, "Breedtegraad (latitude)", "52.518263", "Lengtegraad (longitude)", "6.421917")
             cameraLatInput = cameraCoordinates.first
             cameraLngInput = cameraCoordinates.second
             formPanel.addView(cameraFieldsContainer)
+
+            photoObjectFieldsContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            addSection(photoObjectFieldsContainer, "2. Locatie foto-object (waar het gebouw is gefotografeerd)")
+            val photoObjectCoordinates = coordinateRow(photoObjectFieldsContainer, "Breedtegraad (latitude)", "52.518349", "Lengtegraad (longitude)", "6.420889")
+            photoObjectLatInput = photoObjectCoordinates.first
+            photoObjectLngInput = photoObjectCoordinates.second
+            formPanel.addView(photoObjectFieldsContainer)
+
+            modelObjectFieldsContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            addSection(modelObjectFieldsContainer, "3. Centrum 3D-model (objectlocatie)")
+            val objectCoordinates = coordinateRow(modelObjectFieldsContainer, "Breedtegraad (latitude)", "52.518349", "Lengtegraad (longitude)", "6.420889")
+            objectLatInput = objectCoordinates.first
+            objectLngInput = objectCoordinates.second
+            formPanel.addView(modelObjectFieldsContainer)
+
             testFieldsContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            addSection(testFieldsContainer, "Testlocatie van het object")
+            addSection(testFieldsContainer, "4. Centrum 3D-model (testlocatie)")
             val testCoordinates = coordinateRow(testFieldsContainer, "Breedtegraad (latitude)", "52.518349", "Lengtegraad (longitude)", "6.420889")
             testLatInput = testCoordinates.first
             testLngInput = testCoordinates.second
-            // Het 3D-model wordt straks gelijktijdig op de objectlocatie en testlocatie geplaatst.
             formPanel.addView(testFieldsContainer)
             addSection(formPanel, "Kaart en camerabeeld")
             if (currentSection == "edit") {
@@ -1262,8 +1268,9 @@ class AdminActivity : Activity() {
         val isModel = photos[selected].objectType == "MODEL"
         styleObjectTypeButton(objectTypePhotoButton, !isModel)
         styleObjectTypeButton(objectTypeModelButton, isModel)
-        cameraFieldsContainer.visibility = View.VISIBLE
-        photoObjectFieldsContainer.visibility = if (isModel) View.VISIBLE else View.GONE
+        cameraFieldsContainer.visibility = if (isModel) View.GONE else View.VISIBLE
+        photoObjectFieldsContainer.visibility = if (isModel) View.GONE else View.VISIBLE
+        modelObjectFieldsContainer.visibility = if (isModel) View.VISIBLE else View.GONE
         testFieldsContainer.visibility = if (isModel) View.VISIBLE else View.GONE
         preview.visibility = if (isModel) View.GONE else View.VISIBLE
         modelPhotoUrlInput.visibility = if (isModel) View.VISIBLE else View.GONE
@@ -1515,8 +1522,8 @@ class AdminActivity : Activity() {
         val clng = cameraLngInput.numberOr(6.421917)
         val tlat = if (isModel) testLatInput.numberOr(olat) else olat
         val tlng = if (isModel) testLngInput.numberOr(olng) else olng
-        val centerLat = prefs.getString("mapCenterLat", null)?.toDoubleOrNull() ?: (olat + clat + if (isModel) polat + tlat else 0.0) / if (isModel) 4.0 else 2.0
-        val centerLng = prefs.getString("mapCenterLng", null)?.toDoubleOrNull() ?: (olng + clng + if (isModel) polng + tlng else 0.0) / if (isModel) 4.0 else 2.0
+        val centerLat = prefs.getString("mapCenterLat", null)?.toDoubleOrNull() ?: if (isModel) (olat + tlat) / 2.0 else (polat + clat) / 2.0
+        val centerLng = prefs.getString("mapCenterLng", null)?.toDoubleOrNull() ?: if (isModel) (olng + tlng) / 2.0 else (polng + clng) / 2.0
         val zoom = prefs.getInt("mapZoom", 17)
         val mapBackground = prefs.getString("map_background", "pdok")
         val tileLayerJs = when (mapBackground) {
@@ -1553,9 +1560,13 @@ class AdminActivity : Activity() {
         testPin.on('dragend',function(){var p=testPin.getLatLng();TijdBeeld.onMapMove('test',p.lat,p.lng);});
         function setPoints(a,b,c,d,e,f,g,h,fit,isModel){
           objectPin.setLatLng([a,b]);photoObjectPin.setLatLng([c,d]);cameraPin.setLatLng([e,f]);testPin.setLatLng([g,h]);
-          photoObjectPin.setOpacity(isModel===true?1:0);testPin.setOpacity(isModel===true?1:0);
+          // Foto en 3D-model zijn zelfstandige objecten: toon uitsluitend hun eigen twee spelden.
+          objectPin.setOpacity(isModel===true?1:0);objectPin.dragging[isModel===true?'enable':'disable']();
+          testPin.setOpacity(isModel===true?1:0);testPin.dragging[isModel===true?'enable':'disable']();
+          photoObjectPin.setOpacity(isModel===true?0:1);photoObjectPin.dragging[isModel===true?'disable':'enable']();
+          cameraPin.setOpacity(isModel===true?0:1);cameraPin.dragging[isModel===true?'disable':'enable']();
           if(fit!==false){
-            var points=isModel===true?[[a,b],[c,d],[e,f],[g,h]]:[[a,b],[e,f]];
+            var points=isModel===true?[[a,b],[g,h]]:[[c,d],[e,f]];
             map.fitBounds(L.latLngBounds(points),{paddingTopLeft:[32,84],paddingBottomRight:[32,78],maxZoom:17,animate:false});
           }
         }
