@@ -1506,8 +1506,17 @@ class AdminActivity : Activity() {
         val polng = photoObjectLngInput.text.toString().trim().toDoubleOrNull() ?: olng
         val clat = cameraLatInput.numberOr(52.518263)
         val clng = cameraLngInput.numberOr(6.421917)
-        val tlat = if (isModel) testLatInput.numberOr(olat) else olat
-        val tlng = if (isModel) testLngInput.numberOr(olng) else olng
+        // Als de testlocatie nog niet is ingevuld, toon de testspeld tijdelijk
+        // naast het modelcentrum. Zo liggen de twee sleepbare spelden niet boven op elkaar.
+        // De tijdelijke positie wordt pas een echte GPS-positie zodra de gebruiker sleept.
+        val testCoordinatesValid = testLatInput.text.toString().trim().toDoubleOrNull()?.isFinite() == true &&
+            testLngInput.text.toString().trim().toDoubleOrNull()?.isFinite() == true
+        val tlat = if (isModel) {
+            if (testCoordinatesValid) testLatInput.numberOr(olat) else olat + 0.00025
+        } else olat
+        val tlng = if (isModel) {
+            if (testCoordinatesValid) testLngInput.numberOr(olng) else olng + 0.00025
+        } else olng
         val js = "if(window.setPoints){setPoints($olat,$olng,$polat,$polng,$clat,$clng,$tlat,$tlng,$fit,$isModel);}"
         if (mapReady && mapScreenActive) map.evaluateJavascript(js, null)
     }
@@ -1520,8 +1529,17 @@ class AdminActivity : Activity() {
         val polng = photoObjectLngInput.text.toString().trim().toDoubleOrNull() ?: olng
         val clat = cameraLatInput.numberOr(52.518263)
         val clng = cameraLngInput.numberOr(6.421917)
-        val tlat = if (isModel) testLatInput.numberOr(olat) else olat
-        val tlng = if (isModel) testLngInput.numberOr(olng) else olng
+        // Als de testlocatie nog niet is ingevuld, toon de testspeld tijdelijk
+        // naast het modelcentrum. Zo liggen de twee sleepbare spelden niet boven op elkaar.
+        // De tijdelijke positie wordt pas een echte GPS-positie zodra de gebruiker sleept.
+        val testCoordinatesValid = testLatInput.text.toString().trim().toDoubleOrNull()?.isFinite() == true &&
+            testLngInput.text.toString().trim().toDoubleOrNull()?.isFinite() == true
+        val tlat = if (isModel) {
+            if (testCoordinatesValid) testLatInput.numberOr(olat) else olat + 0.00025
+        } else olat
+        val tlng = if (isModel) {
+            if (testCoordinatesValid) testLngInput.numberOr(olng) else olng + 0.00025
+        } else olng
         val centerLat = prefs.getString("mapCenterLat", null)?.toDoubleOrNull() ?: if (isModel) (olat + tlat) / 2.0 else (polat + clat) / 2.0
         val centerLng = prefs.getString("mapCenterLng", null)?.toDoubleOrNull() ?: if (isModel) (olng + tlng) / 2.0 else (polng + clng) / 2.0
         val zoom = prefs.getInt("mapZoom", 17)
@@ -1589,8 +1607,17 @@ class AdminActivity : Activity() {
                 val polng = photoObjectLngInput.text.toString().trim().toDoubleOrNull() ?: olng
                 val clat = cameraLatInput.numberOr(52.518263)
                 val clng = cameraLngInput.numberOr(6.421917)
-                val tlat = if (isModel) testLatInput.numberOr(olat) else olat
-                val tlng = if (isModel) testLngInput.numberOr(olng) else olng
+                // Als de testlocatie nog niet is ingevuld, toon de testspeld tijdelijk
+                // naast het modelcentrum. Zo liggen de twee sleepbare spelden niet boven op elkaar.
+                // De tijdelijke positie wordt pas een echte GPS-positie zodra de gebruiker sleept.
+                val testCoordinatesValid = testLatInput.text.toString().trim().toDoubleOrNull()?.isFinite() == true &&
+                    testLngInput.text.toString().trim().toDoubleOrNull()?.isFinite() == true
+                val tlat = if (isModel) {
+                    if (testCoordinatesValid) testLatInput.numberOr(olat) else olat + 0.00025
+                } else olat
+                val tlng = if (isModel) {
+                    if (testCoordinatesValid) testLngInput.numberOr(olng) else olng + 0.00025
+                } else olng
                 map.evaluateJavascript("setPoints($olat,$olng,$polat,$polng,$clat,$clng,$tlat,$tlng,true,$isModel);", null)
             }
         }
