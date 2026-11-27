@@ -870,6 +870,31 @@ class AdminActivity : Activity() {
             if (item.title.contains("Ommerschans", ignoreCase = true)) "ommerschans.glb" else ""
         }
 
+    private fun catalogValidationError(item: PhotoConfig): String? {
+        fun validCoordinates(lat: Double, lng: Double): Boolean =
+            lat.isFinite() && lat in -90.0..90.0 && lng.isFinite() && lng in -180.0..180.0
+
+        if (item.title.isBlank()) return "de titel ontbreekt"
+        if (!validCoordinates(item.objectLat, item.objectLng)) return "de GPS-positie van het object ontbreekt of is ongeldig"
+        if (!item.imageUrl.startsWith("https://")) return "de URL van de bijbehorende foto ontbreekt of is ongeldig"
+
+        if (item.objectType == "MODEL") {
+            val asset = modelAssetFor(item)
+            if (!item.modelUrl.startsWith("https://") && !asset.matches(Regex("[a-zA-Z0-9._-]+[.]glb", RegexOption.IGNORE_CASE))) {
+                return "de GLB-URL of modelbestandsnaam ontbreekt"
+            }
+            if (item.displayLocation !in setOf("OBJECT", "TEST")) return "de weergavelocatie is ongeldig"
+            if (item.displayLocation == "TEST" && !validCoordinates(item.testLat, item.testLng)) {
+                return "de GPS-positie van de 3D-model-testlocatie ontbreekt of is ongeldig"
+            }
+        } else {
+            if (!validCoordinates(item.cameraLat, item.cameraLng)) {
+                return "de GPS-positie van de fotograaf ontbreekt of is ongeldig"
+            }
+        }
+        return null
+    }
+
     private fun validateCurrentMedia(): Boolean {
         persistCurrentForm()
         val item = photos.getOrNull(selected) ?: return false
@@ -1064,9 +1089,15 @@ class AdminActivity : Activity() {
             return
         }
         saveCurrent()
-        val publishablePhotos = photos.filter { item -> item.published && item.title.isNotBlank() &&
-            item.imageUrl.startsWith("https://") &&
-            (if (item.objectType == "MODEL") item.modelUrl.startsWith("https://") || modelAssetFor(item).isNotBlank() else true) }
+        val publishablePhotos = photos.filter { it.published }
+        val invalidPublishedPhoto = publishablePhotos.firstOrNull { catalogValidationError(it) != null }
+        if (invalidPublishedPhoto != null) {
+            val reason = catalogValidationError(invalidPublishedPhoto).orEmpty()
+            Toast.makeText(this,
+                "Publiceren niet mogelijk voor '${invalidPublishedPhoto.title.ifBlank { "Naamloos object" }}': $reason. De GPS-wijziging is wel lokaal opgeslagen.",
+                Toast.LENGTH_LONG).show()
+            return
+        }
         if (publishablePhotos.isEmpty()) {
             Toast.makeText(this,
                 "Er is geen geldige foto geselecteerd voor openbare publicatie. De bestaande openbare foto's blijven behouden.",
