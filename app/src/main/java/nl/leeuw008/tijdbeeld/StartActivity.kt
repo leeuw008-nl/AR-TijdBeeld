@@ -428,7 +428,11 @@ class StartActivity : Activity() {
                 if (bitmap != null) runOnUiThread { featuredImage.setImageBitmap(bitmap) }
             } catch (_: Exception) { }
         }.start()
-        val photoMarkers = photos.joinToString(",") { "[${it.objectLat},${it.objectLng}]" }
+        val photoMarkers = photos.joinToString(",") {
+            val lat = if (it.objectType == "MODEL") it.objectLat else it.photoObjectLat
+            val lng = if (it.objectType == "MODEL") it.objectLng else it.photoObjectLng
+            "[$lat,$lng]"
+        }
         val html = """
             <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
             <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
