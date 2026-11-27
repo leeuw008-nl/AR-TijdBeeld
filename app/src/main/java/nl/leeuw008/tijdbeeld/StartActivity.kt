@@ -429,20 +429,17 @@ class StartActivity : Activity() {
             } catch (_: Exception) { }
         }.start()
         val photoMarkers = photos.joinToString(",") { "[${it.objectLat},${it.objectLng}]" }
-        // Vast modelanker van Ommerschans; staat los van de fotocatalogus.
-        val modelMarkers = "[[52.587396655,6.391726895]]"
         val html = """
             <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
             <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
             <style>html,body,#map{height:100%;margin:0} .leaflet-control-attribution{font-size:8px}</style>
             <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script></head>
             <body><div id="map"></div><script>
-            const photoPoints=[$photoMarkers]; const modelPoints=$modelMarkers;
-            const points=photoPoints.concat(modelPoints);
+            const photoPoints=[$photoMarkers];
+            const points=photoPoints;
             const map=L.map('map',{zoomControl:false,scrollWheelZoom:false,dragging:false, doubleClickZoom:false, touchZoom:false});
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
             photoPoints.forEach(p=>L.circleMarker(p,{radius:5,color:'#1769aa',fillColor:'#1769aa',fillOpacity:1}).addTo(map));
-            modelPoints.forEach(p=>L.circleMarker(p,{radius:7,color:'#d33b32',fillColor:'#d33b32',fillOpacity:1}).addTo(map));
             if(points.length===1){map.setView(points[0],16)}else{map.fitBounds(points,{padding:[18,18],maxZoom:15})}
             </script></body></html>
         """.trimIndent()
