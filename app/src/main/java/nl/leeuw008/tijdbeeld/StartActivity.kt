@@ -26,7 +26,10 @@ private data class HomePhoto(
     val title: String,
     val imageUrl: String,
     val objectLat: Double,
-    val objectLng: Double
+    val objectLng: Double,
+    val photoObjectLat: Double,
+    val photoObjectLng: Double,
+    val objectType: String
 )
 
 class StartActivity : Activity() {
@@ -359,7 +362,10 @@ class StartActivity : Activity() {
                     item.optString("title"),
                     item.optString("imageUrl"),
                     item.optDouble("objectLat"),
-                    item.optDouble("objectLng")
+                    item.optDouble("objectLng"),
+                    item.optDouble("photoObjectLat", item.optDouble("objectLat")),
+                    item.optDouble("photoObjectLng", item.optDouble("objectLng")),
+                    item.optString("objectType", "PHOTO")
                 ))
             }
             // Een lokale keuze uit de proefapp heeft voorrang op een oudere servercache.
@@ -405,7 +411,10 @@ class StartActivity : Activity() {
                 if (imageUrl.isBlank()) continue
                 local.add(HomePhoto(
                     item.optString("id"), item.optString("title"), imageUrl,
-                    item.optDouble("objectLat"), item.optDouble("objectLng")
+                    item.optDouble("objectLat"), item.optDouble("objectLng"),
+                    item.optDouble("photoObjectLat", item.optDouble("objectLat")),
+                    item.optDouble("photoObjectLng", item.optDouble("objectLng")),
+                    item.optString("objectType", "PHOTO")
                 ))
             }
             photos = local
@@ -429,8 +438,8 @@ class StartActivity : Activity() {
             } catch (_: Exception) { }
         }.start()
         val photoMarkers = photos.joinToString(",") {
-            val lat = if (it.objectType == "MODEL") it.objectLat else it.photoObjectLat
-            val lng = if (it.objectType == "MODEL") it.objectLng else it.photoObjectLng
+            val lat = if (it.objectType.equals("MODEL", ignoreCase = true)) it.objectLat else it.photoObjectLat
+            val lng = if (it.objectType.equals("MODEL", ignoreCase = true)) it.objectLng else it.photoObjectLng
             "[$lat,$lng]"
         }
         val html = """
