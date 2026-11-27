@@ -905,9 +905,9 @@ class AdminActivity : Activity() {
         if (!item.imageUrl.startsWith("https://")) return "de URL van de bijbehorende foto ontbreekt of is ongeldig"
 
         if (item.objectType == "MODEL") {
-            val asset = modelAssetFor(item)
-            if (!item.modelUrl.startsWith("https://") && !asset.matches(Regex("[a-zA-Z0-9._-]+[.]glb", RegexOption.IGNORE_CASE))) {
-                return "de GLB-URL of modelbestandsnaam ontbreekt"
+            if (!item.modelUrl.trim().startsWith("https://", ignoreCase = true) ||
+                !item.modelUrl.trim().substringBefore('?').endsWith(".glb", ignoreCase = true)) {
+                return "de HTTPS-URL van het GLB-bestand ontbreekt of is ongeldig"
             }
             if (item.displayLocation !in setOf("OBJECT", "TEST")) return "de weergavelocatie is ongeldig"
             if (item.displayLocation == "TEST" && !validCoordinates(item.testLat, item.testLng)) {
@@ -925,8 +925,9 @@ class AdminActivity : Activity() {
         persistCurrentForm()
         val item = photos.getOrNull(selected) ?: return false
         if (item.objectType == "MODEL") {
-            if (item.modelUrl.isBlank() && modelAssetFor(item).isBlank()) {
-                Toast.makeText(this, "Vul eerst de URL van het GLB-bestand in.", Toast.LENGTH_LONG).show()
+            if (!item.modelUrl.trim().startsWith("https://", ignoreCase = true) ||
+                !item.modelUrl.trim().substringBefore('?').endsWith(".glb", ignoreCase = true)) {
+                Toast.makeText(this, "Vul eerst een geldige HTTPS-URL van een GLB-bestand in.", Toast.LENGTH_LONG).show()
                 return false
             }
             if (item.imageUrl.isBlank()) {
@@ -1244,7 +1245,11 @@ class AdminActivity : Activity() {
         val p = photos[selected]
         persistCurrentForm()
         if (p.objectType == "MODEL") {
-            if (p.modelUrl.isBlank() && modelAssetFor(p).isBlank()) { Toast.makeText(this, "Vul eerst de URL van het GLB-model in.", Toast.LENGTH_LONG).show(); return }
+            if (!p.modelUrl.trim().startsWith("https://", ignoreCase = true) ||
+                !p.modelUrl.trim().substringBefore('?').endsWith(".glb", ignoreCase = true)) {
+                Toast.makeText(this, "Vul eerst een geldige HTTPS-URL van het GLB-model in.", Toast.LENGTH_LONG).show()
+                return
+            }
             if (p.imageUrl.isBlank()) { Toast.makeText(this, "Vul ook de URL van de bijbehorende foto in. Deze is verplicht bij een 3D-model.", Toast.LENGTH_LONG).show(); return }
             startActivityForResult(Intent(this, ModelArActivity::class.java).apply {
                 putExtra("photoTitle", p.title)
@@ -1393,19 +1398,16 @@ class AdminActivity : Activity() {
 
         val url = urlInput.text.toString().trim()
         val asset = modelAssetFor(item)
-        val sourceKey = when {
-            url.isNotBlank() -> "url:$url"
-            asset.isNotBlank() -> "asset:$asset"
-            else -> ""
-        }
-        if (sourceKey.isBlank()) {
+        if (!url.startsWith("https://", ignoreCase = true) ||
+            !url.substringBefore('?').endsWith(".glb", ignoreCase = true)) {
             destroyModelPreview()
             modelPreviewStatus?.apply {
-                text = "3D-model verschijnt hier zodra een GLB-bestand is ingevuld."
+                text = "Vul eerst een geldige HTTPS-URL van een GLB-bestand in."
                 visibility = View.VISIBLE
             }
             return
         }
+        val sourceKey = "url:$url"
         if (!force && modelPreviewSource == sourceKey && modelPreviewSurface != null) return
 
         destroyModelPreview()
