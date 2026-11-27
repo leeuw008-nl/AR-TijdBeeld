@@ -1109,7 +1109,7 @@ class AdminActivity : Activity() {
             Toast.makeText(this, "Opslaan geweigerd: de fotolijst is leeg. Bestaande gegevens zijn behouden.", Toast.LENGTH_LONG).show()
             return
         }
-        editor.putString("photos", newJson)
+        return editor.putString("photos", newJson)
             .putString("featured_photo_id", featuredPhotoId)
             .commit()
     }
@@ -1514,6 +1514,8 @@ class AdminActivity : Activity() {
             Toast.makeText(this, "Er is geen GLB-bestand of lokaal 3D-model beschikbaar.", Toast.LENGTH_LONG).show()
             return
         }
+        // Eerst actuele formulierwaarden lokaal vastleggen voordat de kaart wordt opgebouwd.
+        saveCurrent()
         mapScreenActive = true
         val screen = FrameLayout(this).apply { setBackgroundColor(0xFFFFFFFF.toInt()) }
         map = WebView(this).apply {
@@ -1573,9 +1575,12 @@ class AdminActivity : Activity() {
         })
 
         screen.addView(actionButton("Opslaan") {
-            saveCurrent()
-            if (mapReady) map.evaluateJavascript("TijdBeeld.saveMapView();", null)
-            Toast.makeText(this@AdminActivity, "Kaartposities opgeslagen", Toast.LENGTH_SHORT).show()
+            if (mapReady) {
+                map.evaluateJavascript("TijdBeeld.savePins();", null)
+                map.evaluateJavascript("TijdBeeld.saveMapView();", null)
+            } else {
+                Toast.makeText(this@AdminActivity, "De kaart is nog niet gereed. Probeer het opnieuw.", Toast.LENGTH_SHORT).show()
+            }
         }, FrameLayout.LayoutParams(dp(170), dp(48), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
             bottomMargin = dp(10)
         })
@@ -1693,6 +1698,19 @@ class AdminActivity : Activity() {
           }
         }
         function saveMapView(){var p=map.getCenter();TijdBeeld.onMapViewport(p.lat,p.lng,map.getZoom());}
+        // Lees bij expliciet opslaan de actuele markercoördinaten opnieuw uit.
+        function savePins(){
+          if(isModel){
+            var o=objectPin.getLatLng(),t=testPin.getLatLng();
+            TijdBeeld.onMapMove('object',o.lat,o.lng);
+            TijdBeeld.onMapMove('test',t.lat,t.lng);
+          }else{
+            var p=photoObjectPin.getLatLng(),c=cameraPin.getLatLng();
+            TijdBeeld.onMapMove('photoObject',p.lat,p.lng);
+            TijdBeeld.onMapMove('camera',c.lat,c.lng);
+          }
+          TijdBeeld.onMapSaveComplete();
+        }
         map.on('moveend',saveMapView);
         map.on('zoomend',function(){saveMapView();TijdBeeld.onMapZoom(map.getZoom());});
         window.addEventListener('load',function(){setTimeout(function(){map.invalidateSize();TijdBeeld.onMapReady();TijdBeeld.onMapZoom(map.getZoom());},350);});
@@ -1747,9 +1765,17 @@ class AdminActivity : Activity() {
                         "camera" -> { item.cameraLat = lat; item.cameraLng = lng }
                         "test" -> { item.testLat = lat; item.testLng = lng }
                     }
-                    saveAll()
-                    if (item.published) publishCatalog()
+                    // GPS-posities worden lokaal opgeslagen; publicatie is een aparte handeling.
+                    val saved = saveAll()
+                    if (!saved) {
+                        Toast.makeText(this@AdminActivity, "Opslaan van de kaartpositie is mislukt. De oude gegevens zijn behouden.", Toast.LENGTH_LONG).show()
+                    }
                 }
+            }
+        }
+        @JavascriptInterface fun onMapSaveComplete() {
+            runOnUiThread {
+                Toast.makeText(this@AdminActivity, "Kaartposities lokaal opgeslagen.", Toast.LENGTH_SHORT).show()
             }
         }
         @JavascriptInterface fun onMapViewport(lat: Double, lng: Double, zoom: Int) {
