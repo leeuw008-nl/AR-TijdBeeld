@@ -1,6 +1,8 @@
 name: Deploy TijdBeeld Worker
 
 on:
+  push:
+    branches: [feature/objecten-foto-en-3d]
   workflow_dispatch:
 
 permissions:
