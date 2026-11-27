@@ -88,8 +88,8 @@ class ModelArActivity : Activity() {
                     settings.getFloat("max_heading_accuracy_deg", 15f).toDouble()
                 )
                 setGeoTargets(
-                    intent.getDoubleExtra("objectLat", 52.58737559898257),
-                    intent.getDoubleExtra("objectLng", 6.391727308884152),
+                    intent.getDoubleExtra("objectLat", Double.NaN),
+                    intent.getDoubleExtra("objectLng", Double.NaN),
                     intent.getDoubleExtra("testLat", Double.NaN),
                     intent.getDoubleExtra("testLng", Double.NaN)
                 )
