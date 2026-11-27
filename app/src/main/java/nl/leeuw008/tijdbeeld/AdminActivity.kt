@@ -1072,7 +1072,7 @@ class AdminActivity : Activity() {
         dialog.window?.setLayout(-1, -1)
     }
 
-    private fun saveAll() {
+    private fun saveAll(): Boolean {
         val array = JSONArray()
         photos.forEach { p ->
             array.put(JSONObject().put("id", p.id).put("title", p.title).put("imageUrl", p.imageUrl)
@@ -1107,7 +1107,7 @@ class AdminActivity : Activity() {
         }
         if (array.length() == 0) {
             Toast.makeText(this, "Opslaan geweigerd: de fotolijst is leeg. Bestaande gegevens zijn behouden.", Toast.LENGTH_LONG).show()
-            return
+            return false
         }
         return editor.putString("photos", newJson)
             .putString("featured_photo_id", featuredPhotoId)
