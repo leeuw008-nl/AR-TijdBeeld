@@ -79,31 +79,47 @@ async function verifyPassword(password, encoded) {
   }
 }
 
-function validCatalog(value) {
+function catalogValidationError(value) {
   if (!value || ![1, 2].includes(value.schemaVersion) || !Array.isArray(value.photos) || value.photos.length > 2000) {
-    return false;
+    return "catalogusheader of fotolijst ontbreekt of is ongeldig";
   }
-  return value.photos.every((photo) => {
+  for (let index = 0; index < value.photos.length; index++) {
+    const photo = value.photos[index];
+    const label = photo?.title || photo?.id || `object ${index + 1}`;
     if (!photo || typeof photo.id !== "string" || !photo.id ||
         typeof photo.title !== "string" || !photo.title ||
         !Number.isFinite(photo.objectLat) || photo.objectLat < -90 || photo.objectLat > 90 ||
-        !Number.isFinite(photo.objectLng) || photo.objectLng < -180 || photo.objectLng > 180) return false;
+        !Number.isFinite(photo.objectLng) || photo.objectLng < -180 || photo.objectLng > 180) {
+      return `"${label}": titel, object-ID of GPS-positie van het object ontbreekt of is ongeldig`;
+    }
     const type = photo.type || "PHOTO";
     if (type === "MODEL") {
       if (!(typeof photo.modelUrl === "string" && photo.modelUrl.startsWith("https://")) &&
-          !(typeof photo.modelAsset === "string" && /^[a-zA-Z0-9._-]+\.glb$/i.test(photo.modelAsset))) return false;
-      if (!["OBJECT", "TEST"].includes(photo.displayLocation || "OBJECT")) return false;
+          !(typeof photo.modelAsset === "string" && /^[a-zA-Z0-9._-]+\\.glb$/i.test(photo.modelAsset))) {
+        return `"${label}": geldige GLB-URL of modelbestandsnaam ontbreekt`;
+      }
+      if (!["OBJECT", "TEST"].includes(photo.displayLocation || "OBJECT")) {
+        return `"${label}": weergavelocatie moet OBJECT of TEST zijn`;
+      }
       if ((photo.displayLocation || "OBJECT") === "TEST" &&
           (!Number.isFinite(photo.testLat) || photo.testLat < -90 || photo.testLat > 90 ||
-           !Number.isFinite(photo.testLng) || photo.testLng < -180 || photo.testLng > 180)) return false;
-      return true;
+           !Number.isFinite(photo.testLng) || photo.testLng < -180 || photo.testLng > 180)) {
+        return `"${label}": de GPS-positie van de 3D-model-testlocatie ontbreekt of is ongeldig`;
+      }
+      continue;
     }
-    return type === "PHOTO" &&
-      typeof photo.imageUrl === "string" && photo.imageUrl.startsWith("https://") &&
-      Number.isFinite(photo.cameraLat) && photo.cameraLat >= -90 && photo.cameraLat <= 90 &&
-      Number.isFinite(photo.cameraLng) && photo.cameraLng >= -180 && photo.cameraLng <= 180;
-  });
+    if (type !== "PHOTO" ||
+        typeof photo.imageUrl !== "string" || !photo.imageUrl.startsWith("https://") ||
+        !Number.isFinite(photo.cameraLat) || photo.cameraLat < -90 || photo.cameraLat > 90 ||
+        !Number.isFinite(photo.cameraLng) || photo.cameraLng < -180 || photo.cameraLng > 180) {
+      return `"${label}": foto-URL, type of GPS-positie van de fotograaf ontbreekt of is ongeldig`;
+    }
+  }
+  return null;
 }
+
+function validCatalog(value) {
+  return catalogValidationError(value) === null;
 
 async function getSession(request, env) {
   const authorization = request.headers.get("Authorization") || "";
@@ -406,7 +422,10 @@ async function handle(request, env) {
     if (!current) return json({ error: "Je sessie is verlopen. Log opnieuw in." }, 401);
     let catalog;
     try { catalog = await request.json(); } catch { return json({ error: "Ongeldige catalogusgegevens." }, 400); }
-    if (!validCatalog(catalog)) return json({ error: "De catalogus voldoet niet aan het vereiste formaat." }, 400);
+    const validationError = catalogValidationError(catalog);
+    if (validationError) {
+      return json({ error: "De catalogus voldoet niet aan het vereiste formaat: " + validationError + "." }, 400);
+    }
     // Fail-safe: een publicatie mag nooit bestaande openbare foto-ID's laten verdwijnen.
     // Verwijderen moet later via een afzonderlijke, expliciete en bevestigde beheeractie.
     if (catalog.photos.length === 0) {
