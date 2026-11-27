@@ -42,7 +42,9 @@ data class PhotoConfig(
     var testLat: Double = Double.NaN,
     var testLng: Double = Double.NaN,
     var displayLocation: String = "OBJECT",
-    var modelScale: Float = 1f
+    var modelScale: Float = 1f,
+    var photoObjectLat: Double = Double.NaN,
+    var photoObjectLng: Double = Double.NaN
 ) {
     fun caption() = title
 }
@@ -56,6 +58,8 @@ class AdminActivity : Activity() {
     private lateinit var urlInput: EditText
     private lateinit var objectLatInput: EditText
     private lateinit var objectLngInput: EditText
+    private lateinit var photoObjectLatInput: EditText
+    private lateinit var photoObjectLngInput: EditText
     private lateinit var cameraLatInput: EditText
     private lateinit var cameraLngInput: EditText
     private lateinit var publishCheckbox: CheckBox
@@ -67,6 +71,7 @@ class AdminActivity : Activity() {
     private lateinit var testLngInput: EditText
     private lateinit var cameraFieldsContainer: LinearLayout
     private lateinit var testFieldsContainer: LinearLayout
+    private lateinit var photoObjectFieldsContainer: LinearLayout
     private lateinit var map: WebView
     private var adminScreenView: View? = null
     private var mapScreenActive = false
@@ -236,7 +241,8 @@ class AdminActivity : Activity() {
                         o.optDouble("imageHeightMeters", 1.65).toFloat().coerceIn(1f, 3f),
                         objectTypeFromJson(o), o.optString("modelUrl"), o.optString("modelAsset"),
                         o.optDouble("testLat", Double.NaN), o.optDouble("testLng", Double.NaN),
-                        o.optString("displayLocation", "OBJECT"), o.optDouble("modelScale", 1.0).toFloat().coerceIn(0.01f, 100f)
+                        o.optString("displayLocation", "OBJECT"), o.optDouble("modelScale", 1.0).toFloat().coerceIn(0.01f, 100f),
+                        o.optDouble("photoObjectLat", Double.NaN), o.optDouble("photoObjectLng", Double.NaN)
                     ))
                 }
             } catch (_: Exception) {
@@ -309,7 +315,8 @@ class AdminActivity : Activity() {
                     o.optDouble("imageHeightMeters", 1.65).toFloat().coerceIn(1f, 3f),
                     objectTypeFromJson(o), o.optString("modelUrl"), o.optString("modelAsset"),
                     o.optDouble("testLat", Double.NaN), o.optDouble("testLng", Double.NaN),
-                    o.optString("displayLocation", "OBJECT"), o.optDouble("modelScale", 1.0).toFloat().coerceIn(0.01f, 100f)
+                    o.optString("displayLocation", "OBJECT"), o.optDouble("modelScale", 1.0).toFloat().coerceIn(0.01f, 100f),
+                    o.optDouble("photoObjectLat", Double.NaN), o.optDouble("photoObjectLng", Double.NaN)
                 ))
             }
             if (remotePhotos.isEmpty()) return
@@ -323,6 +330,8 @@ class AdminActivity : Activity() {
                     if (local != null) {
                         remote.objectLat = local.objectLat
                         remote.objectLng = local.objectLng
+                        remote.photoObjectLat = local.photoObjectLat
+                        remote.photoObjectLng = local.photoObjectLng
                         remote.cameraLat = local.cameraLat
                         remote.cameraLng = local.cameraLng
                         remote.testLat = local.testLat
@@ -505,6 +514,12 @@ class AdminActivity : Activity() {
             val objectCoordinates = coordinateRow(formPanel, "Breedtegraad (latitude)", "52.518349", "Lengtegraad (longitude)", "6.420889")
             objectLatInput = objectCoordinates.first
             objectLngInput = objectCoordinates.second
+            photoObjectFieldsContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            addSection(photoObjectFieldsContainer, "Locatie van het gefotografeerde object")
+            val photoObjectCoordinates = coordinateRow(photoObjectFieldsContainer, "Breedtegraad (latitude)", "52.518349", "Lengtegraad (longitude)", "6.420889")
+            photoObjectLatInput = photoObjectCoordinates.first
+            photoObjectLngInput = photoObjectCoordinates.second
+            formPanel.addView(photoObjectFieldsContainer)
             cameraFieldsContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             addSection(cameraFieldsContainer, "Locatie waar de foto is gemaakt")
             val cameraCoordinates = coordinateRow(cameraFieldsContainer, "Breedtegraad (latitude)", "52.518263", "Lengtegraad (longitude)", "6.421917")
@@ -736,6 +751,8 @@ class AdminActivity : Activity() {
         titleInput.setText(p.title); urlInput.setText(if (p.objectType == "MODEL") p.modelUrl else p.imageUrl)
         modelPhotoUrlInput.setText(p.imageUrl)
         objectLatInput.setText(p.objectLat.toString()); objectLngInput.setText(p.objectLng.toString())
+        photoObjectLatInput.setText(if (p.photoObjectLat.isFinite()) p.photoObjectLat.toString() else "")
+        photoObjectLngInput.setText(if (p.photoObjectLng.isFinite()) p.photoObjectLng.toString() else "")
         testLatInput.setText(if (p.testLat.isFinite()) p.testLat.toString() else "")
         testLngInput.setText(if (p.testLng.isFinite()) p.testLng.toString() else "")
         cameraLatInput.setText(p.cameraLat.toString()); cameraLngInput.setText(p.cameraLng.toString())
@@ -833,6 +850,8 @@ class AdminActivity : Activity() {
         }
         p.objectLat = objectLatInput.numberOr(p.objectLat)
         p.objectLng = objectLngInput.numberOr(p.objectLng)
+        p.photoObjectLat = photoObjectLatInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN
+        p.photoObjectLng = photoObjectLngInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN
         p.cameraLat = cameraLatInput.numberOr(p.cameraLat)
         p.cameraLng = cameraLngInput.numberOr(p.cameraLng)
         p.testLat = if (::testLatInput.isInitialized) testLatInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN else p.testLat
@@ -995,6 +1014,8 @@ class AdminActivity : Activity() {
             array.put(JSONObject().put("id", p.id).put("title", p.title).put("imageUrl", p.imageUrl)
                 .put("source", p.source).put("sourceId", p.sourceId)
                 .put("objectLat", p.objectLat).put("objectLng", p.objectLng)
+                .put("photoObjectLat", if (p.photoObjectLat.isFinite()) p.photoObjectLat else JSONObject.NULL)
+                .put("photoObjectLng", if (p.photoObjectLng.isFinite()) p.photoObjectLng else JSONObject.NULL)
                 .put("cameraLat", p.cameraLat).put("cameraLng", p.cameraLng)
                 .put("imageWidthMeters", p.imageWidthMeters.toDouble())
                 .put("imageHeightMeters", p.imageHeightMeters.toDouble())
@@ -1058,6 +1079,8 @@ class AdminActivity : Activity() {
                     .put("sourceId", p.sourceId)
                     .put("objectLat", p.objectLat)
                     .put("objectLng", p.objectLng)
+                    .put("photoObjectLat", if (p.photoObjectLat.isFinite()) p.photoObjectLat else JSONObject.NULL)
+                    .put("photoObjectLng", if (p.photoObjectLng.isFinite()) p.photoObjectLng else JSONObject.NULL)
                     .put("cameraLat", p.cameraLat)
                     .put("cameraLng", p.cameraLng)
                     .put("imageWidthMeters", p.imageWidthMeters.toDouble())
@@ -1164,6 +1187,7 @@ class AdminActivity : Activity() {
                 putExtra("modelUrl", p.modelUrl)
                 putExtra("modelAsset", modelAssetFor(p))
                 putExtra("objectLat", p.objectLat); putExtra("objectLng", p.objectLng)
+                putExtra("photoObjectLat", p.photoObjectLat); putExtra("photoObjectLng", p.photoObjectLng)
                 putExtra("testLat", p.testLat); putExtra("testLng", p.testLng)
             }, 3001)
         } else {
@@ -1238,7 +1262,8 @@ class AdminActivity : Activity() {
         val isModel = photos[selected].objectType == "MODEL"
         styleObjectTypeButton(objectTypePhotoButton, !isModel)
         styleObjectTypeButton(objectTypeModelButton, isModel)
-        cameraFieldsContainer.visibility = if (isModel) View.GONE else View.VISIBLE
+        cameraFieldsContainer.visibility = View.VISIBLE
+        photoObjectFieldsContainer.visibility = if (isModel) View.VISIBLE else View.GONE
         testFieldsContainer.visibility = if (isModel) View.VISIBLE else View.GONE
         preview.visibility = if (isModel) View.GONE else View.VISIBLE
         modelPhotoUrlInput.visibility = if (isModel) View.VISIBLE else View.GONE
