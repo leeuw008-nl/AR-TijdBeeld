@@ -213,17 +213,14 @@ class PhotoOverviewActivity : Activity() {
     private fun renderPhotos() {
         content.removeAllViews()
         val origin = currentLocation
-        val ommerschans = photos.filter { it.title.trim() == OMMERSCHANS_PHOTO_TITLE }
-        val otherPhotos = photos.filterNot { it.title.trim() == OMMERSCHANS_PHOTO_TITLE }
-        val sortedOthers = if (origin != null) {
-            otherPhotos.sortedBy { photo ->
+        // Sorteer alle objecten op hun eigen objectlocatie; geen object krijgt een vaste plek onderaan.
+        val sorted = if (origin != null) {
+            photos.sortedBy { photo ->
                 val result = FloatArray(1)
                 Location.distanceBetween(origin.latitude, origin.longitude, photo.objectLat, photo.objectLng, result)
                 result[0]
             }
-        } else otherPhotos.sortedBy { it.title.lowercase(Locale.ROOT) }
-        // De Ommerschans is de verste locatie in de huidige fotoselectie: altijd als laatste tonen.
-        val sorted = sortedOthers + ommerschans
+        } else photos.sortedBy { it.title.lowercase(Locale.ROOT) }
 
         if (origin == null) {
             addMessage("Locatie niet beschikbaar. Geef locatietoestemming om de foto's op afstand te sorteren.")
@@ -301,11 +298,6 @@ class PhotoOverviewActivity : Activity() {
 
     private fun openPhoto(photo: CatalogPhoto) {
         if (photo.objectType == "MODEL" || photo.title.trim() == OMMERSCHANS_PHOTO_TITLE) {
-            val useTest = photo.objectType == "MODEL" && photo.displayLocation == "TEST" && photo.testLat.isFinite() && photo.testLng.isFinite()
-            if (photo.objectType == "MODEL" && photo.displayLocation == "TEST" && !useTest) {
-                android.widget.Toast.makeText(this, "De testlocatie van dit model is niet volledig ingesteld.", android.widget.Toast.LENGTH_LONG).show()
-                return
-            }
             startActivity(Intent(this, ModelArActivity::class.java).apply {
                 putExtra("photoId", photo.id)
                 putExtra("photoTitle", photo.title)
@@ -314,8 +306,8 @@ class PhotoOverviewActivity : Activity() {
                 putExtra("modelAsset", photo.modelAsset)
                 putExtra("objectLat", photo.objectLat)
                 putExtra("objectLng", photo.objectLng)
-                putExtra("targetLat", if (useTest) photo.testLat else photo.objectLat)
-                putExtra("targetLng", if (useTest) photo.testLng else photo.objectLng)
+                putExtra("testLat", photo.testLat)
+                putExtra("testLng", photo.testLng)
             })
             return
         }
