@@ -1542,6 +1542,7 @@ class AdminActivity : Activity() {
           return L.divIcon({className:'',iconSize:[112,40],iconAnchor:[15,36],
             html:'<div class="pin-label">'+svg+'<span>'+label+'</span></div>'});
         }
+        var isModel=${isModel};
         var objectPin=L.marker([${olat},${olng}],{draggable:true,icon:labeledIcon(isModel?'Modelobject':'Foto-object','#1769d2')}).addTo(map);
         var photoObjectPin=L.marker([${polat},${polng}],{draggable:true,icon:labeledIcon('Foto-object','#7b4db5')}).addTo(map);
         var cameraPin=L.marker([${clat},${clng}],{draggable:true,icon:labeledIcon('Fotograaf','#16845b')}).addTo(map);
