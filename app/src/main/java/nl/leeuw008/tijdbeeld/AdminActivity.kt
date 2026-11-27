@@ -869,9 +869,9 @@ class AdminActivity : Activity() {
         }
         p.photoObjectLat = photoObjectLatInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN
         p.photoObjectLng = photoObjectLngInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN
-        val hasGlbUrl = p.modelUrl.trim().startsWith("https://", ignoreCase = true) &&
-            p.modelUrl.trim().substringBefore('?').endsWith(".glb", ignoreCase = true)
-        if (p.objectType == "MODEL" && hasGlbUrl) {
+        val hasGlbUrl = isValidGlbUrl(p.modelUrl)
+        val hasModelSource = hasGlbUrl || modelAssetFor(p).isNotBlank()
+        if (p.objectType == "MODEL" && hasModelSource) {
             p.objectLat = objectLatInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN
             p.objectLng = objectLngInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN
         } else {
@@ -880,7 +880,7 @@ class AdminActivity : Activity() {
         }
         p.cameraLat = cameraLatInput.numberOr(p.cameraLat)
         p.cameraLng = cameraLngInput.numberOr(p.cameraLng)
-        if (p.objectType == "MODEL" && hasGlbUrl) {
+        if (p.objectType == "MODEL" && hasModelSource) {
             p.testLat = if (::testLatInput.isInitialized) testLatInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN else Double.NaN
             p.testLng = if (::testLngInput.isInitialized) testLngInput.text.toString().trim().toDoubleOrNull() ?: Double.NaN else Double.NaN
         } else {
@@ -889,6 +889,13 @@ class AdminActivity : Activity() {
         }
         saveAll()
     }
+
+    private fun isValidGlbUrl(value: String): Boolean =
+        value.trim().startsWith("https://", ignoreCase = true) &&
+            value.trim().substringBefore('?').endsWith(".glb", ignoreCase = true)
+
+    private fun hasModelSource(item: PhotoConfig): Boolean =
+        isValidGlbUrl(item.modelUrl) || modelAssetFor(item).isNotBlank()
 
     private fun modelAssetFor(item: PhotoConfig): String =
         item.modelAsset.trim().ifBlank {
@@ -1355,9 +1362,9 @@ class AdminActivity : Activity() {
         if (!::objectTypeButtons.isInitialized || photos.isEmpty()) return
         val item = photos[selected]
         val isModel = item.objectType == "MODEL"
-        val hasGlbUrl = item.modelUrl.trim().startsWith("https://", ignoreCase = true) &&
-            item.modelUrl.trim().substringBefore('?').endsWith(".glb", ignoreCase = true)
-        if (!isModel || !hasGlbUrl) {
+        val hasGlbUrl = isValidGlbUrl(item.modelUrl)
+        val hasModelSource = hasModelSource(item)
+        if (!isModel || !hasModelSource) {
             updatingFields = true
             objectLatInput.setText("")
             objectLngInput.setText("")
@@ -1366,16 +1373,16 @@ class AdminActivity : Activity() {
             updatingFields = false
         }
         styleObjectTypeButton(objectTypePhotoButton, !isModel)
-        styleObjectTypeButton(objectTypeModelButton, isModel && hasGlbUrl, unavailable = !hasGlbUrl)
+        styleObjectTypeButton(objectTypeModelButton, isModel && hasModelSource, unavailable = !hasModelSource)
         cameraFieldsContainer.visibility = if (isModel) View.GONE else View.VISIBLE
         photoObjectFieldsContainer.visibility = if (isModel) View.GONE else View.VISIBLE
-        modelObjectFieldsContainer.visibility = if (isModel && hasGlbUrl) View.VISIBLE else View.GONE
-        testFieldsContainer.visibility = if (isModel && hasGlbUrl) View.VISIBLE else View.GONE
+        modelObjectFieldsContainer.visibility = if (isModel && hasModelSource) View.VISIBLE else View.GONE
+        testFieldsContainer.visibility = if (isModel && hasModelSource) View.VISIBLE else View.GONE
         preview.visibility = if (isModel) View.GONE else View.VISIBLE
         modelPhotoUrlInput.visibility = if (isModel) View.VISIBLE else View.GONE
         urlInput.hint = if (isModel) "HTTPS-URL naar een GLB 2.0-bestand" else "HTTPS-URL van de historische foto"
-        modelPreviewButton?.visibility = if (isModel && hasGlbUrl) View.VISIBLE else View.GONE
-        if (isModel && hasGlbUrl) {
+        modelPreviewButton?.visibility = if (isModel && hasModelSource) View.VISIBLE else View.GONE
+        if (isModel && hasModelSource) {
             refreshModelPreview()
         } else {
             destroyModelPreview()
@@ -1402,16 +1409,15 @@ class AdminActivity : Activity() {
 
         val url = urlInput.text.toString().trim()
         val asset = modelAssetFor(item)
-        if (!url.startsWith("https://", ignoreCase = true) ||
-            !url.substringBefore('?').endsWith(".glb", ignoreCase = true)) {
+        if (!isValidGlbUrl(url) && asset.isBlank()) {
             destroyModelPreview()
             modelPreviewStatus?.apply {
-                text = "Vul eerst een geldige HTTPS-URL van een GLB-bestand in."
+                text = "Vul een GLB-URL in of selecteer een beschikbaar lokaal 3D-model."
                 visibility = View.VISIBLE
             }
             return
         }
-        val sourceKey = "url:$url"
+        val sourceKey = if (isValidGlbUrl(url)) "url:$url" else "asset:$asset"
         if (!force && modelPreviewSource == sourceKey && modelPreviewSurface != null) return
 
         destroyModelPreview()
